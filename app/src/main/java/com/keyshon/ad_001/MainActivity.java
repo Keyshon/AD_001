@@ -69,10 +69,8 @@ public class MainActivity extends AppCompatActivity {
                 calendar.set(Calendar.HOUR_OF_DAY, hour);
                 calendar.set(Calendar.MINUTE, minute);
                 // Передаём в наше Намерение
-                Bundle extras = new Bundle();
-                extras.putString("extra", "yes");
-                extras.putString("song", "" + pos);
-                myIntent.putExtras(extras);
+                myIntent.putExtra("extra", "yes");
+                myIntent.putExtra("song", String.valueOf(pos));
                 pending_intent = PendingIntent.getBroadcast(MainActivity.this, 0, myIntent, PendingIntent.FLAG_UPDATE_CURRENT);
                 alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
                 // Выводим результат
@@ -94,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onNothingSelected(AdapterView<?> p0) {
-
+                pos = 0;
             }
 
             @Override
@@ -110,9 +108,9 @@ public class MainActivity extends AppCompatActivity {
     // Приводим число к корректному строковому представлению
     private String getCorrectString(Integer num) {
         if (num < 10)
-            return "0" + num;
+            return "0" + String.valueOf(num);
         else
-            return "" + num;
+            return String.valueOf(num);
     }
     @Override
     public void onStart() {

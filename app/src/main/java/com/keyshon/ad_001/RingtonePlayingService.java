@@ -12,6 +12,7 @@ import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
 import java.util.Random;
+import android.util.Log;
 
 
 public class RingtonePlayingService extends Service {
@@ -34,6 +35,7 @@ public class RingtonePlayingService extends Service {
         // ID - состояние будильника
         int startId = id;
         // Менеджер оповещаний
+        mMediaPlayer = new MediaPlayer();
         final NotificationManager mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         // Намерение с MainActivity
         Intent intent1 = new Intent(this.getApplicationContext(), MainActivity.class);
@@ -61,49 +63,61 @@ public class RingtonePlayingService extends Service {
                 startId = 0;
                 break;
         }
+        String song = intent.getExtras().getString("song");
+        Log.e("song", song);
         // Состояние:
         if (!this.isRunning && startId == 1) {      // Будильник ещё не запущен, а пришла команда запуска
             // Выбран рандом
-            String song = intent.getExtras().getString("song");
-            if (song == "0") {
+            if (song.equals("0")) {
                 Integer min = 1;
                 Integer max = 9;
                 Random r = new Random();
-                song = "" + (r.nextInt(max - min + 1) + min);
+                song = String.valueOf(r.nextInt(max - min + 1) + min);
+                Log.e("new song", song);
             }
             switch (song) {
                 case "1":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song1);
+                    Log.e("chosen", song);
                     break;
                 case "2":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song2);
+                    Log.e("chosen", song);
                     break;
                 case "3":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song3);
+                    Log.e("chosen", song);
                     break;
                 case "4":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song4);
+                    Log.e("chosen", song);
                     break;
                 case "5":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song5);
+                    Log.e("chosen", song);
                     break;
                 case "6":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song6);
+                    Log.e("chosen", song);
                     break;
                 case "7":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song7);
+                    Log.e("chosen", song);
                     break;
                 case "8":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song8);
+                    Log.e("chosen", song);
                     break;
                 case "9":
                     mMediaPlayer = MediaPlayer.create(this, R.raw.song9);
+                    Log.e("chosen ", song);
                     break;
             }
             // Запуск проигрывания
             mMediaPlayer.start();
             // Вывод оповещения
             mNM.notify(0, mNotify);
+            Log.e("song", song);
             // Обновление параметров будильника
             this.isRunning = true;
             this.startId = 0;
