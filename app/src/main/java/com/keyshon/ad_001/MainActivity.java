@@ -72,7 +72,10 @@ public class MainActivity extends AppCompatActivity {
                 myIntent.putExtra("extra", "yes");
                 myIntent.putExtra("song", String.valueOf(pos));
                 pending_intent = PendingIntent.getBroadcast(MainActivity.this, 0, myIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-                alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
+                // Задаём будильник (с возможным смещением на сутки)
+                long timeOffset = calendar.getTimeInMillis();
+                if (calendar.before(Calendar.getInstance())) timeOffset+= 86400000L;
+                alarmManager.set(AlarmManager.RTC_WAKEUP, timeOffset, pending_intent);
                 // Выводим результат
                 setAlarmText("Время будильника " + s_hour + ":" + s_minute);
             }
