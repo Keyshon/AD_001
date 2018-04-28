@@ -97,7 +97,7 @@ public class SoundRecorder {
                     // Ошибка при записи
                     Log.e(TAG, "Ошибка при запуске записи: " + e);
                 } finally {
-                    // Заканчивается работа с буфером
+                    // Работа с буфером завершается
                     if (bufferedOutputStream != null) {
                         try {
                             bufferedOutputStream.close();
@@ -130,13 +130,13 @@ public class SoundRecorder {
         };
         mRecordingAsyncTask.execute();
     }
-
+    // Остановка записи
     public void stopRecording() {
         if (mRecordingAsyncTask != null) {
             mRecordingAsyncTask.cancel(true);
         }
     }
-
+    // Остановка проигрывания (надо?)
     public void stopPlaying() {
         if (mPlayingAsyncTask != null) {
             mPlayingAsyncTask.cancel(true);
@@ -144,17 +144,17 @@ public class SoundRecorder {
     }
 
     /**
-     * Starts playback of the recorded audio file.
+     * Проигрывание записанного аудио
      */
     @SuppressLint("StaticFieldLeak")
     public void startPlay() {
         if (mState != State.IDLE) {
-            Log.w(TAG, "Requesting to play while state was not IDLE");
+            Log.w(TAG, "Нельзя запустить запись не в режиме IDLE");
             return;
         }
 
+        // Если нет записанного файла, то запись останавливается
         if (!new File(mContext.getFilesDir(), mOutputFileName).exists()) {
-            // there is no recording to play
             if (mListener != null) {
                 mHandler.post(new Runnable() {
                     @Override
@@ -167,28 +167,35 @@ public class SoundRecorder {
         }
         final int intSize = AudioTrack.getMinBufferSize(RECORDING_RATE, CHANNELS_OUT, FORMAT);
 
+        // Создание задачи
         mPlayingAsyncTask = new AsyncTask<Void, Void, Void>() {
 
             private AudioTrack mAudioTrack;
 
+            // Предвыполнение
             @Override
             protected void onPreExecute() {
                 mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC,
-                        mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0 /* flags */);
+                        mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC), 0 /* можно добавить флаги */);
                 mState = State.PLAYING;
             }
 
+            // Проигрывание фоновым процессом
             @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
             @Override
             protected Void doInBackground(Void... params) {
                 try {
+                    // Создание сущности трека
                     mAudioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, RECORDING_RATE,
                             CHANNELS_OUT, FORMAT, intSize, AudioTrack.MODE_STREAM);
+                    // Определение буфера
                     byte[] buffer = new byte[intSize * 2];
                     FileInputStream in = null;
                     BufferedInputStream bis = null;
+                    // Установка громкости и проигрывание
                     mAudioTrack.setVolume(AudioTrack.getMaxVolume());
                     mAudioTrack.play();
+                    // Считывание файла в буфер и перезапись
                     try {
                         in = mContext.openFileInput(mOutputFileName);
                         bis = new BufferedInputStream(in);
@@ -197,8 +204,10 @@ public class SoundRecorder {
                             mAudioTrack.write(buffer, 0, read);
                         }
                     } catch (IOException e) {
-                        Log.e(TAG, "Failed to read the sound file into a byte array", e);
+                        // Ошибка при записи
+                        Log.e(TAG, "Нет возможности прочесть файл в байт-массив", e);
                     } finally {
+                        // Работа с буфером завершается
                         try {
                             if (in != null) {
                                 in.close();
@@ -206,12 +215,12 @@ public class SoundRecorder {
                             if (bis != null) {
                                 bis.close();
                             }
-                        } catch (IOException e) { /* ignore */}
+                        } catch (IOException e) { /* ничего не делать */}
 
                         mAudioTrack.release();
                     }
                 } catch (IllegalStateException e) {
-                    Log.e(TAG, "Failed to start playback", e);
+                    Log.e(TAG, "Ошибка при запуске аудио", e);
                 }
                 return null;
             }
@@ -226,6 +235,7 @@ public class SoundRecorder {
                 cleanup();
             }
 
+            // Обновление статусов, завершение работы сервиса проигрывания
             private void cleanup() {
                 if (mListener != null) {
                     mListener.onPlaybackStopped();
@@ -242,15 +252,15 @@ public class SoundRecorder {
     public interface OnVoicePlaybackStateChangedListener {
 
         /**
-         * Called when the playback of the audio file ends. This should be called on the UI thread.
+         * Вызывается по завершении проигрывания аудиофайла
          */
         void onPlaybackStopped();
     }
     /**
-     * Cleans up some resources related to {@link AudioTrack} and {@link AudioRecord}
+     * Очищает ресурсы {@link AudioTrack} и {@link AudioRecord}
      */
     public void cleanup() {
-        Log.d(TAG, "cleanup() is called");
+        Log.d(TAG, "процедура cleanup() вызвана");
         stopPlaying();
         stopRecording();
     }
