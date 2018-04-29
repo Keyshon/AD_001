@@ -388,13 +388,15 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             if (recorder != null) {
-                // Считать файл
+                // Считать файл -------------------------- ДОДЕЛАТЬ ТУТ
+                double[] buffer = null;
                 // Преобразование записи в mfcc
-                float[] mfccAudio = null;
+                MFCC mfccConvert = new MFCC();
+                float[] mfccInput = mfccConvert.process(buffer);
                 // Классификация записи
                 for (Classifier classifier : mClassifiers) {
                     //perform classification on the image
-                    final Classification res = classifier.recognize(mfccAudio);
+                    final Classification res = classifier.recognize(mfccInput);
                     //if it can't classify, output a question mark
                     if (res.getLabel() == null) {
                         Log.e("Нет данных о лейблах", classifier.name() + ": ?\n");
