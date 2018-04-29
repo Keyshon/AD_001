@@ -18,6 +18,13 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.TimePicker;
 import android.media.MediaRecorder;
+import android.util.Log;
+import android.os.Environment;
+import android.os.CountDownTimer;
+import android.media.AudioManager;
+import android.media.AudioDeviceInfo;
+import android.media.MediaPlayer;
+//import edu.cmu.sphinx.tools.feature;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -25,20 +32,16 @@ import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Calendar;
-import android.util.Log;
-import android.os.Environment;
-
-import android.os.CountDownTimer;
-import android.media.AudioManager;
-import android.media.AudioDeviceInfo;
-import android.media.MediaPlayer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+
 
 import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
-    // Инициализируем переменные БУДИЛЬНИКА
+    // Инициализация переменных БУДИЛЬНИКА
     AlarmManager alarmManager;
     private PendingIntent pending_intent;
     private AlarmReceiver alarm;
@@ -48,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
     Context context;
     String[] lisRes = {"Случайно", "Звук 1", "Звук 2", "Звук 3", "Звук 4", "Звук 5", "Звук 6", "Звук 7", "Звук 8", "Звук 9"};
     Integer pos = 0;
-    // Инициализируем переменные АУДИОРЕКОРДЕРА
+    // Инициализация переменных АУДИОРЕКОРДЕРА
     private static final int RECORDER_BPP = 16;
     private static final String AUDIO_RECORDER_FILE_EXT_WAV = ".wav";
     private static final String AUDIO_RECORDER_FOLDER = "AudioRecorder";
@@ -61,10 +64,13 @@ public class MainActivity extends AppCompatActivity {
     private int bufferSize = 0;
     private Thread recordingThread = null;
     private boolean isRecording = false;
-    // Инициализируем переменные Таймерпа
+    // Инициализация переменных Таймера
     private static long delayTime = 1000; // Лучше всего 1200000 ms = 20 min
     private Timer mTimer;
     private MyTimerTask mMyTimerTask;
+    // Инициализация переменных модели
+    private List<Classifier> mClassifiers = new ArrayList<>();
+    private static final int MFCC_SIZE = 28;
 
     // Действия по инициализации активити
     @Override
@@ -158,6 +164,9 @@ public class MainActivity extends AppCompatActivity {
                 pos = p2;
             }
         });
+        // tensorflow
+        //load up our saved model to perform inference from local storage
+        loadModel();
     }
     // Получить имя файла
     private String getFilename(){
@@ -378,13 +387,57 @@ public class MainActivity extends AppCompatActivity {
     class MyTimerTask extends TimerTask {
         @Override
         public void run() {
-            // Запуск записи
+            if (recorder != null) {
+                // Считать файл
+                // Преобразование записи в mfcc
+                float[] mfccAudio = null;
+                // Классификация записи
+                for (Classifier classifier : mClassifiers) {
+                    //perform classification on the image
+                    final Classification res = classifier.recognize(mfccAudio);
+                    //if it can't classify, output a question mark
+                    if (res.getLabel() == null) {
+                        Log.e("Нет данных о лейблах", classifier.name() + ": ?\n");
+                    } else {
+                        //else output its name
+                        Log.e("Успешно - результат", String.format("%s: %s, %f\n", classifier.name(), res.getLabel(),
+                                res.getConf()));
+                    }
+                }
+                // Изменение state
+                Log.e("Task", "Done");
+            }
+            // Запуск новой записи
             startRecording();
-            // Считать файл
-            // Преобразование записи в mfcc
-            // Классификация записи
-            // Изменение state
-            Log.e("Task", "Done");
         }
+    }
+
+    //creates a model object in memory using the saved tensorflow protobuf model file
+    //which contains all the learned weights
+    private void loadModel() {
+        //The Runnable interface is another way in which you can implement multi-threading other than extending the
+        // //Thread class due to the fact that Java allows you to extend only one class. Runnable is just an interface,
+        // //which provides the method run.
+        // //Threads are implementations and use Runnable to call the method run().
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    //add 2 classifiers to our classifier arraylist
+                    //the tensorflow classifier and the keras classifier
+                    mClassifiers.add(
+                            TensorFlowClassifier.create(getAssets(), "TensorFlow",
+                                    "opt_mnist_convnet-tf.pb", "labels.txt", MFCC_SIZE,
+                                    "input", "output", true));
+                    mClassifiers.add(
+                            TensorFlowClassifier.create(getAssets(), "Keras",
+                                    "opt_mnist_convnet-keras.pb", "labels.txt", MFCC_SIZE,
+                                    "conv2d_1_input", "dense_2/Softmax", false));
+                } catch (final Exception e) {
+                    //if they aren't found, throw an error!
+                    throw new RuntimeException("Error initializing classifiers!", e);
+                }
+            }
+        }).start();
     }
 }
