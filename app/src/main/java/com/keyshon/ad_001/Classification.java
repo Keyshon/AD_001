@@ -1,9 +1,7 @@
 package com.keyshon.ad_001;
 
 public class Classification {
-    //conf is the output
     private float conf;
-    //input label
     private String label;
 
     Classification() {

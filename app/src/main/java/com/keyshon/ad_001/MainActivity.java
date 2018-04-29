@@ -412,19 +412,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    //creates a model object in memory using the saved tensorflow protobuf model file
-    //which contains all the learned weights
+    // Создание модели и сохранение тензорфлоу модели в формате .pb с обученными весами
     private void loadModel() {
-        //The Runnable interface is another way in which you can implement multi-threading other than extending the
-        // //Thread class due to the fact that Java allows you to extend only one class. Runnable is just an interface,
-        // //which provides the method run.
-        // //Threads are implementations and use Runnable to call the method run().
+        // Интерфейс для прогона данных
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    //add 2 classifiers to our classifier arraylist
-                    //the tensorflow classifier and the keras classifier
+                    // Добавление 2 классификаторов (я скорее всего буду использвать 1
                     mClassifiers.add(
                             TensorFlowClassifier.create(getAssets(), "TensorFlow",
                                     "opt_mnist_convnet-tf.pb", "labels.txt", MFCC_SIZE,
@@ -434,7 +429,7 @@ public class MainActivity extends AppCompatActivity {
                                     "opt_mnist_convnet-keras.pb", "labels.txt", MFCC_SIZE,
                                     "conv2d_1_input", "dense_2/Softmax", false));
                 } catch (final Exception e) {
-                    //if they aren't found, throw an error!
+                    // Ошибка, если не найдено
                     throw new RuntimeException("Error initializing classifiers!", e);
                 }
             }
