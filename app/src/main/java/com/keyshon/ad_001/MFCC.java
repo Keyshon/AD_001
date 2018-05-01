@@ -1,5 +1,7 @@
 package com.keyshon.ad_001;
 
+import android.util.Log;
+
 public class MFCC {
 
     private final static int       n_mfcc       		= 20;
@@ -8,7 +10,7 @@ public class MFCC {
     private final static int       hop_length           = 512;
     private final static int	   n_mels               = 128;
 
-    private final static double    sampleRate           = 16000.0;
+    private final static double    sampleRate           = 22050.0;
     private final static double    fMax                 = sampleRate/2.0;
 
     FFT fft = new FFT();

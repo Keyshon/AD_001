@@ -1,6 +1,8 @@
 package com.keyshon.ad_001;
 
 import android.content.res.AssetManager;
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -20,7 +22,8 @@ public class TensorFlowClassifier implements Classifier {
     private String name;
     private String inputName;
     private String outputName;
-    private int inputSize;
+    private int inputSizeH;
+    private int inputSizeW;
     private boolean feedKeepProb;
 
     private List<String> labels;
@@ -35,6 +38,7 @@ public class TensorFlowClassifier implements Classifier {
         List<String> labels = new ArrayList<>();
         while ((line = br.readLine()) != null) {
             labels.add(line);
+            Log.e("Лейбл",line);
         }
 
         br.close();
@@ -43,7 +47,7 @@ public class TensorFlowClassifier implements Classifier {
 
     // Записывает в модель лейблы и метаданные модели в том числе предсказания
     public static TensorFlowClassifier create(AssetManager assetManager, String name,
-                                              String modelPath, String labelFile, int inputSize, String inputName, String outputName,
+                                              String modelPath, String labelFile, int inputSizeH, int inputSizeW, String inputName, String outputName,
                                               boolean feedKeepProb) throws IOException {
         // Инициализация классификатора
         TensorFlowClassifier c = new TensorFlowClassifier();
@@ -61,7 +65,8 @@ public class TensorFlowClassifier implements Classifier {
         int numClasses = 2;
 
         // Размер входного массива
-        c.inputSize = inputSize;
+        c.inputSizeH = inputSizeH;
+        c.inputSizeW = inputSizeW;
 
         // Инициализация остальных переменных модели
         c.outputNames = new String[]{outputName};
@@ -80,11 +85,11 @@ public class TensorFlowClassifier implements Classifier {
 
     // Классификация данных
     @Override
-    public Classification recognize(final float[] pixels) {
+    public Classification recognize(final float[] data) {
 
         // При помощи интерфейса происходит передача имени входного слоя, данных и размера
-        tfHelper.feed(inputName, pixels, 1, inputSize, inputSize, 1);
-
+        tfHelper.feed(inputName, data, inputSizeH, inputSizeW);
+        Integer l = data.length;
         // Вероятности
         if (feedKeepProb) {
             tfHelper.feed("keep_prob", new float[]{1});

@@ -56,7 +56,9 @@ public class MainActivity extends AppCompatActivity {
     private static final String AUDIO_RECORDER_FILE_EXT_WAV = ".wav";
     private static final String AUDIO_RECORDER_FOLDER = "AudioRecorder";
     private static final String AUDIO_RECORDER_TEMP_FILE = "record_temp.raw";
-    private static final int RECORDER_SAMPLERATE = 44100;
+    private static final int RECORDER_SAMPLERATE = 22050;
+    private static final int SAMPLE_DURATION_MS = 2000;
+    private static final int RECORDING_LENGTH = (int) (RECORDER_SAMPLERATE * SAMPLE_DURATION_MS / 1000);
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
 
@@ -70,13 +72,14 @@ public class MainActivity extends AppCompatActivity {
     private MyTimerTask mMyTimerTask;
     // Инициализация переменных модели
     private List<Classifier> mClassifiers = new ArrayList<>();
-    private static final int MFCC_SIZE = 28;
+    private static final int MFCC_SIZE_HEIGHT = 20;
+    private static final int MFCC_SIZE_WIDTH = 87;
 
     // Действия по инициализации активити
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        bufferSize = AudioRecord.getMinBufferSize(8000,
+        bufferSize = AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE,
                 AudioFormat.CHANNEL_CONFIGURATION_MONO,
                 AudioFormat.ENCODING_PCM_16BIT);
 
@@ -99,6 +102,9 @@ public class MainActivity extends AppCompatActivity {
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         // Задаём будильниу выбранное время
         final Calendar calendar = Calendar.getInstance();
+
+        // tensorflow
+        loadModel();
 
         // Листенер на кнопку "Запуска будильника"
         start_alarm.setOnClickListener(new View.OnClickListener() {
@@ -164,9 +170,6 @@ public class MainActivity extends AppCompatActivity {
                 pos = p2;
             }
         });
-        // tensorflow
-        //load up our saved model to perform inference from local storage
-        loadModel();
     }
     // Получить имя файла
     private String getFilename(){
@@ -177,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
             file.mkdirs();
         }
 
-        return (file.getAbsolutePath() + "/" + System.currentTimeMillis() + AUDIO_RECORDER_FILE_EXT_WAV);
+        return (file.getAbsolutePath() + "/" + "sleep_sound" + AUDIO_RECORDER_FILE_EXT_WAV);
     }
     // Получить имя временного файла
     private String getTempFilename(){
@@ -253,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     // Остановить запись
-    private void stopRecording(){
+    private String stopRecording(){
         if(recorder != null && isRecording){
             isRecording = false;
 
@@ -266,8 +269,10 @@ public class MainActivity extends AppCompatActivity {
             recordingThread = null;
         }
 
+        String prediction = getPrediction(getTempFilename());
         copyWaveFile(getTempFilename(),getFilename());
         deleteTempFile();
+        return prediction;
     }
     // Удалить временный файл
     private void deleteTempFile() {
@@ -275,7 +280,7 @@ public class MainActivity extends AppCompatActivity {
         file.delete();
     }
     // Скопировать wav-файл
-    private void copyWaveFile(String inFilename,String outFilename){
+    private void copyWaveFile(String inFilename, String outFilename){
         FileInputStream in = null;
         FileOutputStream out = null;
         long totalAudioLen = 0;
@@ -388,32 +393,14 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             if (recorder != null) {
-                // Считать файл -------------------------- ДОДЕЛАТЬ ТУТ
-                double[] buffer = null;
-                // Преобразование записи в mfcc
-                MFCC mfccConvert = new MFCC();
-                float[] mfccInput = mfccConvert.process(buffer);
-                // Классификация записи
-                for (Classifier classifier : mClassifiers) {
-                    //perform classification on the image
-                    final Classification res = classifier.recognize(mfccInput);
-                    //if it can't classify, output a question mark
-                    if (res.getLabel() == null) {
-                        Log.e("Нет данных о лейблах", classifier.name() + ": ?\n");
-                    } else {
-                        //else output its name
-                        Log.e("Успешно - результат", String.format("%s: %s, %f\n", classifier.name(), res.getLabel(),
-                                res.getConf()));
-                    }
-                }
+                String result = stopRecording();
                 // Изменение state
-                Log.e("Task", "Done");
+                Log.e("Запись", "Завершена");
             }
             // Запуск новой записи
             startRecording();
         }
     }
-
     // Создание модели и сохранение тензорфлоу модели в формате .pb с обученными весами
     private void loadModel() {
         // Интерфейс для прогона данных
@@ -424,17 +411,58 @@ public class MainActivity extends AppCompatActivity {
                     // Добавление 2 классификаторов (я скорее всего буду использвать 1
                     mClassifiers.add(
                             TensorFlowClassifier.create(getAssets(), "TensorFlow",
-                                    "opt_mnist_convnet-tf.pb", "labels.txt", MFCC_SIZE,
+                                    "opt_mnist_convnet-tf.pb", "labels.txt", MFCC_SIZE_HEIGHT, MFCC_SIZE_WIDTH,
                                     "input", "output", true));
-                    mClassifiers.add(
-                            TensorFlowClassifier.create(getAssets(), "Keras",
-                                    "opt_mnist_convnet-keras.pb", "labels.txt", MFCC_SIZE,
-                                    "conv2d_1_input", "dense_2/Softmax", false));
+//                    mClassifiers.add(
+//                            TensorFlowClassifier.create(getAssets(), "Keras",
+//                                    "opt_mnist_convnet-keras.pb", "labels.txt", MFCC_SIZE,
+//                                    "conv2d_1_input", "dense_2/Softmax", false));
                 } catch (final Exception e) {
                     // Ошибка, если не найдено
                     throw new RuntimeException("Error initializing classifiers!", e);
                 }
             }
         }).start();
+    }
+    private String getPrediction(String inFilename) {
+        FileInputStream in = null;
+        byte[] data = new byte[RECORDING_LENGTH];
+        try {
+            in = new FileInputStream(inFilename);
+            while(in.read(data) != -1){
+                // Ничего не делать
+            }
+            in.close();
+        }
+        catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        // Преобразование записи в mfcc
+        double[] doubleInputBuffer = new double[RECORDING_LENGTH];
+        for (int i = 0; i < RECORDING_LENGTH; ++i) {
+            doubleInputBuffer[i] = data[i] / 32767.0;
+        }
+        MFCC mfccConvert = new MFCC();
+        Log.e("doubleInputBuffer", "" + doubleInputBuffer.length);
+        float[] mfccInput = mfccConvert.process(doubleInputBuffer);
+        Log.e("mfccInput", "" + mfccInput.length);
+        String prediction = "Не удалось вычислить предсказание";
+        // Классификация записи
+        for (Classifier classifier : mClassifiers) {
+            // Распознаем
+            final Classification res = classifier.recognize(mfccInput);
+            // если не может классифицировать - выводит вопросительный знак
+            if (res.getLabel() == null) {
+                prediction = "Не удалось получить точнй результат";
+                Log.e("Нет данных о лейблах", classifier.name() + ": ?\n");
+            } else {
+                // иначе - имя выходного слоя
+                prediction = res.getLabel();
+                //Log.e("Успешно - результат", String.format("%s: %s, %f\n", classifier.name(), res.getLabel(), res.getConf()));
+            }
+        }
+        return prediction;
     }
 }

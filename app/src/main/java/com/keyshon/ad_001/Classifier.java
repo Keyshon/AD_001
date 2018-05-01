@@ -3,5 +3,5 @@ package com.keyshon.ad_001;
 public interface Classifier {
     String name();
 
-    Classification recognize(final float[] pixels);
+    Classification recognize(final float[] data);
 }
