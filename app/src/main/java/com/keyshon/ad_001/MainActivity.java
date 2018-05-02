@@ -50,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
     long MAX_PHASE_LENGTH = 5400000;
     long MIN_PHASE_LENGTH = 3600000;
     long MAX_CORRECTION_LENGTH = 1200000;
+    long DELTA_ERROR = 300000;
     private Calendar calendar;
     private Calendar phaseCalendar;
     // Инициализация переменных АУДИОРЕКОРДЕРА
@@ -142,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
                         mTimer.cancel();
                     mTimer = new Timer();
                     mMyTimerTask = new MyTimerTask();
-
                     mTimer.schedule(mMyTimerTask, delayTime, 2000);
                     startRecording();
                 }
@@ -219,8 +219,10 @@ public class MainActivity extends AppCompatActivity {
             String prediction = stopRecording();
             if (prediction == "Sleep") {
                 Calendar tempCalendar = Calendar.getInstance();
-                if (tempCalendar.getTimeInMillis() - phaseCalendar.getTimeInMillis() > MIN_PHASE_LENGTH) {
+                if (tempCalendar.getTimeInMillis() > phaseCalendar.getTimeInMillis() - DELTA_ERROR) {
                     phaseCalendar = (Calendar) tempCalendar.clone();
+                    int minutes = (int)(MIN_PHASE_LENGTH / 60000L);
+                    phaseCalendar.add(Calendar.MINUTE, minutes);
                     alarmCorrect();
                 }
             }
@@ -295,7 +297,8 @@ public class MainActivity extends AppCompatActivity {
             recorder = null;
             recordingThread = null;
         }
-        String prediction = getPrediction(getTempFilename());
+        //String prediction = getPrediction(getTempFilename());
+        String prediction = "Sleep";
         copyWaveFile(getTempFilename(),getFilename());
         deleteTempFile();
         return prediction;
@@ -422,16 +425,11 @@ public class MainActivity extends AppCompatActivity {
     class MyTimerTask extends TimerTask {
         @Override
         public void run() {
-            if (recorder != null) {
-                String result = stopRecording();
-
-                // Изменение state
-                Log.e("Запись", "Завершена");
-            }
             // Запуск новой записи
             startRecording();
         }
     }
+
     // Создание модели и сохранение тензорфлоу модели в формате .pb с обученными весами
     private void loadModel() {
         // Интерфейс для прогона данных
@@ -460,10 +458,11 @@ public class MainActivity extends AppCompatActivity {
     private String getPrediction(String inFilename) {
         FileInputStream in = null;
         byte[] data = new byte[RECORDING_LENGTH];
+        byte[] resdata = new byte[RECORDING_LENGTH];
         try {
             in = new FileInputStream(inFilename);
             while(in.read(data) != -1){
-                // Ничего не делать
+                resdata = data;// Ничего не делать
             }
             in.close();
         }
@@ -499,21 +498,26 @@ public class MainActivity extends AppCompatActivity {
 
     // Корректировка времени будильника
     private void alarmCorrect() {
+        String TAG = "Correct";
         final long alarmTime = calendar.getTimeInMillis();
         final long correctTime = phaseCalendar.getTimeInMillis();
+        long diff = alarmTime - correctTime;
         if (alarmTime > correctTime) {
             if (alarmTime - correctTime > MAX_PHASE_LENGTH) {
                 // Ничего не делать - не корректировать время
+                Log.e(TAG,"нет необходимости");
                 return;
             }
             else {
                 if (alarmTime - correctTime > MAX_CORRECTION_LENGTH) {
                     // Убавить -20 минут от будильника
+                    Log.e(TAG,"убрано 20 минут");
                     calendar.add(Calendar.MINUTE, -(int) MAX_CORRECTION_LENGTH);
                     stopRecording = true;
                 }
                 else {
                     // Будить по новому времени
+                    Log.e(TAG,"время изменено");
                     calendar.set(Calendar.MINUTE, phaseCalendar.get(Calendar.MINUTE));
                     calendar.set(Calendar.HOUR, phaseCalendar.get(Calendar.HOUR));
                     stopRecording = true;
@@ -523,11 +527,13 @@ public class MainActivity extends AppCompatActivity {
         else {
             if (correctTime - alarmTime > MAX_CORRECTION_LENGTH) {
                 // Добавить время +20 минут к будильнику
+                Log.e(TAG,"добавлено 20 минут");
                 calendar.add(Calendar.MINUTE, (int) MAX_CORRECTION_LENGTH);
                 stopRecording = true;
             }
             else {
                 // Будить по новому времени
+                Log.e(TAG,"время изменено");
                 calendar.set(Calendar.MINUTE, phaseCalendar.get(Calendar.MINUTE));
                 calendar.set(Calendar.HOUR, phaseCalendar.get(Calendar.HOUR));
                 stopRecording = true;
