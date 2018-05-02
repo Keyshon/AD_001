@@ -80,19 +80,6 @@ def get_batch(batch_size, path):
                 X = []
                 Y = []
 
-# Модель сети
-'''
-Топология:
-    1. Свёрточный слой
-        Relu-активация
-        Dropout
-        Max Pooling
-    2. Свёрточный слой
-        Relu-активация
-        Dropout
-    3. Полносвязный слой
-        MatMul - перемножение матриц
-'''
 def get_model(input, dropout):
     # 1. Свёрточный слой
     with tf.name_scope('Conv1'):
@@ -107,7 +94,6 @@ def get_model(input, dropout):
         tf.summary.histogram('biases', b1)
         tf.summary.histogram('activations', act1)
         tf.summary.histogram('dropouts', drop1)
-
     # 2. Свёрточный слой
     with tf.name_scope('Conv2'):
         w2 = tf.Variable(tf.truncated_normal([6, 4, 44, 44], stddev=0.01), name='W2')
@@ -119,12 +105,10 @@ def get_model(input, dropout):
         tf.summary.histogram('biases', b2)
         tf.summary.histogram('activations', act2)
         tf.summary.histogram('dropouts', drop2)
-
         # Решейпинг для полносвязного слоя
         conv_shape = drop2.get_shape()
         count = int(conv_shape[1] * conv_shape[2] * conv_shape[3])
         flat_output = tf.reshape(drop2, [-1, count])
-
     # Полносвязный слой
     with tf.name_scope('FC'):
         w3 = tf.Variable(tf.truncated_normal([count, NUM_LABELS], stddev=0.01), name='W3')
@@ -140,7 +124,6 @@ def main():
     # Запуска графа и сессии в Tensorflow
     tf.reset_default_graph()
     with tf.Session() as sess:
-        saver = tf.train.Saver()
         # Входные данные
         x = tf.placeholder(tf.float32, shape=[None, HEIGHT, WIDTH], name = 'input')
         # Метки
@@ -172,10 +155,10 @@ def main():
         writer = tf.summary.FileWriter(LOGDIR)
         writer.add_graph(sess.graph)
         test_writer = tf.summary.FileWriter(TEST_LOGDIR)
+        saver = tf.train.Saver()
         # Обучение модели
         print('Starting training\n')
         batch = get_batch(BATCH_SIZE, PATH_TRAIN)
-        #start_time = time.time()
         for epoch in range(1, EPOCHS):
             epoch_acc = 0
             for i in range(1, ITERATIONS + 1):
@@ -189,13 +172,9 @@ def main():
                     writer.add_summary(s, i)
                     print(acc_and_loss)
                 if i % (EVAL_EVERY * 20) == 0:
-                    #tf.train.write_graph(sess.graph_def, '.', 'dreamNet.pbtxt')
                     train_confusion_matrix = sess.run([confusion_matrix], feed_dict={x: X, y: Y, dropout: 1.0})
                     header = LABEL_TO_INDEX_MAP.keys()
-                    #df = pd.DataFrame(np.reshape(train_confusion_matrix, (NUM_LABELS, NUM_LABELS)), index=??)
-                    #saver.save(sess, os.path.join(LOGDIR, 'dreamNet.ckpt'))
                 sess.run(train_step, feed_dict={x: X, y: Y, dropout: 0.7})
-
         # Тестирование модели
         batch = get_batch(BATCH_SIZE, PATH_TEST)
         total_accuracy = 0
@@ -206,57 +185,24 @@ def main():
             test_writer.add_summary(s, i)
             print(test_accuracy)
         print(total_accuracy)
-
+        # Сохранение модели
         saver.save(sess, 'out/' + MODEL_NAME + '.chkp')
+        input_node_name = 'input'
+        keep_prob_node_name = 'keep_prob'
+        output_node_name = 'output'
+        export_model([input_node_name, keep_prob_node_name], output_node_name)
 
-    '''input_graph_path = MODEL_NAME + '.pbtxt'
-    checkpoint_path = "log/" + MODEL_NAME + '.ckpt'
-    input_saver_def_path = ''
-    input_binary = False
-    output_node_names = 'result'
-    restore_op_name = 'save/restore_all'
-    filename_tensor_name = 'save/Const:0'
-    ouput_frozen_graph_name = 'frozen ' + MODEL_NAME + '.pb'
-    clear_devices = True
-
-    my_freeze_graph.freeze_graph(input_graph_path, input_saver_def_path, input_binary, 
-    checkpoint_path, output_node_names, restore_op_name, filename_tensor_name, 
-    ouput_frozen_graph_name, clear_devices, "")
-
-    input_graph_def = tf.GraphDef()
-    with tf.gfile.Open(ouput_frozen_graph_name, 'r') as f:
-        data = f.read()
-        input_graph_def.ParseFromString(data)
-
-    output_graph_def = tf.python.tools.optimize_for_inference_lib.optimize_for_inference(
-        input_graph_def,
-        ['I'],
-        ['result'],
-        tf.float32.as_datatype_enum)
-
-    f = tf.gfile.FastGFile(ouput_frozen_graph_name, 'w')
-    f.write(output_graph_def.SerializeToString())'''
-
+# Экспорт модели
 def export_model(input_node_names, output_node_name):
     my_freeze_graph.freeze_graph('out/' + MODEL_NAME + '.pbtxt', None, False, 'out/' + MODEL_NAME + '.chkp', output_node_name, "save/restore_all", "save/Const:0", 'out/frozen_' + MODEL_NAME + '.pb', True, "")
-
     input_graph_def = tf.GraphDef()
     with tf.gfile.Open('out/frozen_' + MODEL_NAME + '.pb', "rb") as f:
         input_graph_def.ParseFromString(f.read())
-
     output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, input_node_names, [output_node_name], tf.float32.as_datatype_enum)
-
     with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
         f.write(output_graph_def.SerializeToString())
-
     print("graph saved!")
-
 
 if __name__ == '__main__':
     init(PATH_TRAIN)
     main()
-    input_node_name = 'input'
-    keep_prob_node_name = 'keep_prob'
-    output_node_name = 'output'
-    export_model([input_node_name, keep_prob_node_name], output_node_name)
-    print("successful")
