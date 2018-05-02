@@ -20,11 +20,6 @@ import android.widget.TimePicker;
 import android.media.MediaRecorder;
 import android.util.Log;
 import android.os.Environment;
-import android.os.CountDownTimer;
-import android.media.AudioManager;
-import android.media.AudioDeviceInfo;
-import android.media.MediaPlayer;
-//import edu.cmu.sphinx.tools.feature;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -51,6 +46,12 @@ public class MainActivity extends AppCompatActivity {
     Context context;
     String[] lisRes = {"Случайно", "Звук 1", "Звук 2", "Звук 3", "Звук 4", "Звук 5", "Звук 6", "Звук 7", "Звук 8", "Звук 9"};
     Integer pos = 0;
+    private Integer phaseCounter = 0;
+    long MAX_PHASE_LENGTH = 5400000;
+    long MIN_PHASE_LENGTH = 3600000;
+    long MAX_CORRECTION_LENGTH = 1200000;
+    private Calendar calendar;
+    private Calendar phaseCalendar;
     // Инициализация переменных АУДИОРЕКОРДЕРА
     private static final int RECORDER_BPP = 16;
     private static final String AUDIO_RECORDER_FILE_EXT_WAV = ".wav";
@@ -66,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private int bufferSize = 0;
     private Thread recordingThread = null;
     private boolean isRecording = false;
+    private boolean stopRecording;
     // Инициализация переменных Таймера
     private static long delayTime = 1000; // Лучше всего 1200000 ms = 20 min
     private Timer mTimer;
@@ -101,7 +103,8 @@ public class MainActivity extends AppCompatActivity {
         // Создаём будильник
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         // Задаём будильниу выбранное время
-        final Calendar calendar = Calendar.getInstance();
+        calendar = Calendar.getInstance();
+        phaseCalendar = Calendar.getInstance();
 
         // tensorflow
         loadModel();
@@ -111,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
             @TargetApi(Build.VERSION_CODES.M)
             @Override
             public void onClick(View v) {
+                stopRecording = false;
                 // Считываем значения в необходимом формате
                 final int hour = alarmTimePicker.getCurrentHour();
                 final int minute = alarmTimePicker.getCurrentMinute();;
@@ -124,22 +128,28 @@ public class MainActivity extends AppCompatActivity {
                 myIntent.putExtra("song", String.valueOf(pos));
                 pending_intent = PendingIntent.getBroadcast(MainActivity.this, 0, myIntent, PendingIntent.FLAG_UPDATE_CURRENT);
                 // Задаём будильник (с возможным смещением на сутки)
-                long timeOffset = calendar.getTimeInMillis();
-                if (calendar.before(Calendar.getInstance())) timeOffset+= 86400000L;
-                alarmManager.set(AlarmManager.RTC_WAKEUP, timeOffset, pending_intent);
+                if (calendar.before(Calendar.getInstance())) calendar.add(Calendar.DAY_OF_MONTH, 1);
                 // Выводим результат
                 setAlarmText("Время будильника " + s_hour + ":" + s_minute);
                 // Ожидаем таймером номер 2
                 // Запускаем таймер 1
-                if (mTimer != null)
-                    mTimer.cancel();
-                mTimer = new Timer();
-                mMyTimerTask = new MyTimerTask();
+                if (calendar.getTimeInMillis() - Calendar.getInstance().getTimeInMillis() < MIN_PHASE_LENGTH) {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
+                    stopRecording = true;
+                }
+                else {
+                    if (mTimer != null)
+                        mTimer.cancel();
+                    mTimer = new Timer();
+                    mMyTimerTask = new MyTimerTask();
 
-                mTimer.schedule(mMyTimerTask, delayTime, 2000);
-                startRecording();
+                    mTimer.schedule(mMyTimerTask, delayTime, 2000);
+                    startRecording();
+                }
             }
         });
+
+        // Листенер на кнопку "Остановка будильника"
         stop_alarm.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -158,6 +168,7 @@ public class MainActivity extends AppCompatActivity {
                 stopRecording();
             }
         });
+
         // Листенер на выпадающий список
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -171,6 +182,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     // Получить имя файла
     private String getFilename(){
         String filepath = Environment.getExternalStorageDirectory().getPath();
@@ -182,6 +194,7 @@ public class MainActivity extends AppCompatActivity {
 
         return (file.getAbsolutePath() + "/" + "sleep_sound" + AUDIO_RECORDER_FILE_EXT_WAV);
     }
+
     // Получить имя временного файла
     private String getTempFilename(){
         String filepath = Environment.getExternalStorageDirectory().getPath();
@@ -198,11 +211,23 @@ public class MainActivity extends AppCompatActivity {
 
         return (file.getAbsolutePath() + "/" + AUDIO_RECORDER_TEMP_FILE);
     }
+
     // Начать запись
     private void startRecording(){
         // Остановка записи
         if (recorder != null && isRecording) {
-            stopRecording();
+            String prediction = stopRecording();
+            if (prediction == "Sleep") {
+                Calendar tempCalendar = Calendar.getInstance();
+                if (tempCalendar.getTimeInMillis() - phaseCalendar.getTimeInMillis() > MIN_PHASE_LENGTH) {
+                    phaseCalendar = (Calendar) tempCalendar.clone();
+                    alarmCorrect();
+                }
+            }
+        }
+        if (stopRecording == true) {
+            mTimer.cancel();
+            return;
         }
         recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,
                 RECORDER_SAMPLERATE, RECORDER_CHANNELS,RECORDER_AUDIO_ENCODING, bufferSize);
@@ -221,6 +246,7 @@ public class MainActivity extends AppCompatActivity {
 
         recordingThread.start();
     }
+
     // Сохранить в файл
     private void writeAudioDataToFile(){
         byte data[] = new byte[bufferSize];
@@ -255,6 +281,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
     // Остановить запись
     private String stopRecording(){
         if(recorder != null && isRecording){
@@ -268,17 +295,18 @@ public class MainActivity extends AppCompatActivity {
             recorder = null;
             recordingThread = null;
         }
-
         String prediction = getPrediction(getTempFilename());
         copyWaveFile(getTempFilename(),getFilename());
         deleteTempFile();
         return prediction;
     }
+
     // Удалить временный файл
     private void deleteTempFile() {
         File file = new File(getTempFilename());
         file.delete();
     }
+
     // Скопировать wav-файл
     private void copyWaveFile(String inFilename, String outFilename){
         FileInputStream in = null;
@@ -312,11 +340,9 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
     }
+
     // Записать wav-заголовок для правильного сохранения
-    private void WriteWaveFileHeader(
-            FileOutputStream out, long totalAudioLen,
-            long totalDataLen, long longSampleRate, int channels,
-            long byteRate) throws IOException {
+    private void WriteWaveFileHeader(FileOutputStream out, long totalAudioLen, long totalDataLen, long longSampleRate, int channels, long byteRate) throws IOException {
 
         byte[] header = new byte[44];
 
@@ -367,10 +393,12 @@ public class MainActivity extends AppCompatActivity {
 
         out.write(header, 0, 44);
     }
+
     // Установить текст в поле
     public void setAlarmText(String alarmText) {
         alarmTextView.setText(alarmText);
     }
+
     // Приводим число к корректному строковому представлению
     private String getCorrectString(Integer num) {
         if (num < 10)
@@ -378,6 +406,8 @@ public class MainActivity extends AppCompatActivity {
         else
             return String.valueOf(num);
     }
+
+    // Основные реакции MainActivity
     @Override
     public void onStart() {
         super.onStart();
@@ -394,6 +424,7 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             if (recorder != null) {
                 String result = stopRecording();
+
                 // Изменение state
                 Log.e("Запись", "Завершена");
             }
@@ -424,6 +455,8 @@ public class MainActivity extends AppCompatActivity {
             }
         }).start();
     }
+
+    // Получение предсказания при помощи НН
     private String getPrediction(String inFilename) {
         FileInputStream in = null;
         byte[] data = new byte[RECORDING_LENGTH];
@@ -445,9 +478,7 @@ public class MainActivity extends AppCompatActivity {
             doubleInputBuffer[i] = data[i] / 32767.0;
         }
         MFCC mfccConvert = new MFCC();
-        Log.e("doubleInputBuffer", "" + doubleInputBuffer.length);
         float[] mfccInput = mfccConvert.process(doubleInputBuffer);
-        Log.e("mfccInput", "" + mfccInput.length);
         String prediction = "Не удалось вычислить предсказание";
         // Классификация записи
         for (Classifier classifier : mClassifiers) {
@@ -464,5 +495,44 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return prediction;
+    }
+
+    // Корректировка времени будильника
+    private void alarmCorrect() {
+        final long alarmTime = calendar.getTimeInMillis();
+        final long correctTime = phaseCalendar.getTimeInMillis();
+        if (alarmTime > correctTime) {
+            if (alarmTime - correctTime > MAX_PHASE_LENGTH) {
+                // Ничего не делать - не корректировать время
+                return;
+            }
+            else {
+                if (alarmTime - correctTime > MAX_CORRECTION_LENGTH) {
+                    // Убавить -20 минут от будильника
+                    calendar.add(Calendar.MINUTE, -(int) MAX_CORRECTION_LENGTH);
+                    stopRecording = true;
+                }
+                else {
+                    // Будить по новому времени
+                    calendar.set(Calendar.MINUTE, phaseCalendar.get(Calendar.MINUTE));
+                    calendar.set(Calendar.HOUR, phaseCalendar.get(Calendar.HOUR));
+                    stopRecording = true;
+                }
+            }
+        }
+        else {
+            if (correctTime - alarmTime > MAX_CORRECTION_LENGTH) {
+                // Добавить время +20 минут к будильнику
+                calendar.add(Calendar.MINUTE, (int) MAX_CORRECTION_LENGTH);
+                stopRecording = true;
+            }
+            else {
+                // Будить по новому времени
+                calendar.set(Calendar.MINUTE, phaseCalendar.get(Calendar.MINUTE));
+                calendar.set(Calendar.HOUR, phaseCalendar.get(Calendar.HOUR));
+                stopRecording = true;
+            }
+        }
+        alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
     }
 }

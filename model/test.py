@@ -14,22 +14,25 @@ import pandas as pd
 import librosa
 # Библиотека программирования нейросети
 import tensorflow as tf
+import my_freeze_graph
+from tensorflow.python.tools import optimize_for_inference_lib
 
 # Глобальные параметры
 PATH_TRAIN = 'E:\Documents\Dataset\Test'
 PATH_TEST = 'E:\Documents\Dataset\Train'
-BATCH_SIZE = 50
-ITERATIONS = 20
+BATCH_SIZE = 10
+ITERATIONS = 2
 EPOCHS = 2
-ITERATIONS_TEST = 10
+ITERATIONS_TEST = 1
 EVAL_EVERY = 1
 HEIGHT = 20
 WIDTH = 88
 NUM_LABELS = 0
-LEARNING_RATE = 1E-6
+LEARNING_RATE = 0.000000008
 LOGDIR = 'log/'
-TEST_LOGDIR = 'log_test/'
+TEST_LOGDIR = 'logtest/'
 LABEL_TO_INDEX_MAP = {}
+MODEL_NAME = 'dreamNet'
 
 tf.app.flags.DEFINE_integer('training_iteratiom', 1000, 'number of training iterations.')
 tf.app.flags.DEFINE_integer('model_version', 1, 'version number of the model.')
@@ -94,8 +97,8 @@ def get_model(input, dropout):
     # 1. Свёрточный слой
     with tf.name_scope('Conv1'):
         input_4D = tf.reshape(input, [-1, HEIGHT, WIDTH, 1])
-        w1 = tf.Variable(tf.truncated_normal([12, 8, 1, 44], stddev=0.01), name='W')
-        b1 = tf.Variable(tf.zeros([44]), name='B')
+        w1 = tf.Variable(tf.truncated_normal([12, 8, 1, 44], stddev=0.01), name='W1')
+        b1 = tf.Variable(tf.zeros([44]), name='B1')
         conv1 = tf.nn.conv2d(input_4D, w1, strides=[1, 1, 1, 1], padding='SAME')
         act1 = tf.nn.relu(conv1 + b1)
         drop1 = tf.nn.dropout(act1, dropout)
@@ -107,8 +110,8 @@ def get_model(input, dropout):
 
     # 2. Свёрточный слой
     with tf.name_scope('Conv2'):
-        w2 = tf.Variable(tf.truncated_normal([6, 4, 44, 44], stddev=0.01), name='W')
-        b2 = tf.Variable(tf.zeros([44]), name='B')
+        w2 = tf.Variable(tf.truncated_normal([6, 4, 44, 44], stddev=0.01), name='W2')
+        b2 = tf.Variable(tf.zeros([44]), name='B2')
         conv2 = tf.nn.conv2d(max_pool1, w2, strides=[1, 1, 1, 1], padding='SAME')
         act2 = tf.nn.relu(conv2 + b2)
         drop2 = tf.nn.dropout(act2, dropout)
@@ -124,8 +127,8 @@ def get_model(input, dropout):
 
     # Полносвязный слой
     with tf.name_scope('FC'):
-        w3 = tf.Variable(tf.truncated_normal([count, NUM_LABELS], stddev=0.01))
-        b3 = tf.Variable(tf.zeros([NUM_LABELS]))
+        w3 = tf.Variable(tf.truncated_normal([count, NUM_LABELS], stddev=0.01), name='W3')
+        b3 = tf.Variable(tf.zeros([NUM_LABELS]), name='B3')
         fc = tf.add(tf.matmul(flat_output, w3), b3)
         tf.summary.histogram('weights', w3)
         tf.summary.histogram('biases', b3)
@@ -136,76 +139,78 @@ def get_model(input, dropout):
 def main():
     # Запуска графа и сессии в Tensorflow
     tf.reset_default_graph()
-    sess = tf.Session()
-    # Входные данные
-    x = tf.placeholder(tf.float32, shape=[None, HEIGHT, WIDTH], name = 'input')
-    # Метки
-    y = tf.placeholder(tf.float32, shape=[None, NUM_LABELS], name = 'label')
-    # Шанс срабатывания dropout
-    dropout = tf.placeholder(tf.float32, name='dropout')
-    # Модель нейронной сети
-    logits = get_model(x, dropout)
-    # Loss-функция
-    with tf.name_scope('loss'):
-        # ОТЛИЧАЕТСЯ ОТ ВИДЕО!!!
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=y))
-        tf.summary.scalar('loss', loss)
-    # Оптимайзер Loss-функции
-    with tf.name_scope('train'):
-        train_step = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
-    # Функция вычисления точности
-    with tf.name_scope('accuracy'):
-        predicided = tf.argmax(logits, 1)
-        truth = tf.argmax(y, 1)
-        correct_prediction = tf.equal(predicided, truth)
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        confusion_matrix = tf.confusion_matrix(truth, predicided, num_classes=NUM_LABELS)
-        tf.summary.scalar('accuracy', accuracy)
-    # Настройка тензорборда
-    summ = tf.summary.merge_all()
-    saver = tf.train.Saver()
-    sess.run(tf.global_variables_initializer())
-    writer = tf.summary.FileWriter(LOGDIR)
-    writer.add_graph(sess.graph)
-    test_writer = tf.summary.FileWriter(TEST_LOGDIR)
-    # Обучение модели
-    print('Starting training\n')
-    batch = get_batch(BATCH_SIZE, PATH_TRAIN)
-    #start_time = time.time()
-    for epoch in range(1, EPOCHS):
-        epoch_acc = 0
-        for i in range(1, ITERATIONS + 1):
-            begin = time.time()
-            X, Y = next(batch)
-            if i % EVAL_EVERY == 0:
-                # ОТЛИЧАЕТСЯ ОТ ВИДЕО!!!
-                [train_accuracy, train_loss, s] = sess.run([accuracy, loss, summ], feed_dict={x: X,y: Y, dropout: 0.75})
-                acc_and_loss = [i, train_loss, train_accuracy * 100]
-                epoch_acc = train_accuracy
-                writer.add_summary(s, i)
-                print(acc_and_loss)
-            if i % (EVAL_EVERY * 20) == 0:
-                tf.train.write_graph(sess.graph_def, '.', 'dreamNet.pbtxt')
-                train_confusion_matrix = sess.run([confusion_matrix], feed_dict={x: X, y: Y, dropout: 1.0})
-                header = LABEL_TO_INDEX_MAP.keys()
-                #df = pd.DataFrame(np.reshape(train_confusion_matrix, (NUM_LABELS, NUM_LABELS)), index=??)
-                saver.save(sess, os.path.join(LOGDIR, 'dreamNet.ckpt'), i)
-            sess.run(train_step, feed_dict={x: X, y: Y, dropout: 0.75})
-    # Тестирование модели
-    batch = get_batch(BATCH_SIZE, PATH_TEST)
-    total_accuracy = 0
-    for i in range(ITERATIONS_TEST):
-        X, Y = next(batch, PATH_TEST)
-        test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0})
-        total_accuracy += (test_accuracy/ITERATIONS_TEST)
-        test_writer.add_summary(s, i)
-        print(test_accuracy)
-    print(total_accuracy)
+    with tf.Session() as sess:
+        saver = tf.train.Saver()
+        # Входные данные
+        x = tf.placeholder(tf.float32, shape=[None, HEIGHT, WIDTH], name = 'input')
+        # Метки
+        y = tf.placeholder(tf.float32, shape=[None, NUM_LABELS], name = 'label')
+        # Шанс срабатывания dropout
+        dropout = tf.placeholder(tf.float32, name='dropout')
+        # Модель нейронной сети
+        logits = get_model(x, dropout)
+        # Loss-функция
+        with tf.name_scope('loss'):
+            # ОТЛИЧАЕТСЯ ОТ ВИДЕО!!!
+            loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=y))
+            tf.summary.scalar('loss', loss)
+        # Оптимайзер Loss-функции
+        with tf.name_scope('train'):
+            train_step = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
+        # Функция вычисления точности
+        with tf.name_scope('accuracy'):
+            predicided = tf.argmax(logits, 1)
+            truth = tf.argmax(y, 1)
+            correct_prediction = tf.equal(predicided, truth)
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            confusion_matrix = tf.confusion_matrix(truth, predicided, num_classes=NUM_LABELS)
+            tf.summary.scalar('accuracy', accuracy)
+        # Настройка тензорборда
+        summ = tf.summary.merge_all()
+        sess.run(tf.global_variables_initializer())
+        tf.train.write_graph(sess.graph_def, 'out', MODEL_NAME + '.pbtxt', True)
+        writer = tf.summary.FileWriter(LOGDIR)
+        writer.add_graph(sess.graph)
+        test_writer = tf.summary.FileWriter(TEST_LOGDIR)
+        # Обучение модели
+        print('Starting training\n')
+        batch = get_batch(BATCH_SIZE, PATH_TRAIN)
+        #start_time = time.time()
+        for epoch in range(1, EPOCHS):
+            epoch_acc = 0
+            for i in range(1, ITERATIONS + 1):
+                begin = time.time()
+                X, Y = next(batch)
+                if i % EVAL_EVERY == 0:
+                    # ОТЛИЧАЕТСЯ ОТ ВИДЕО!!!
+                    [train_accuracy, train_loss, s] = sess.run([accuracy, loss, summ], feed_dict={x: X,y: Y, dropout: 1.0})
+                    acc_and_loss = [i, train_loss, train_accuracy * 100]
+                    epoch_acc = train_accuracy
+                    writer.add_summary(s, i)
+                    print(acc_and_loss)
+                if i % (EVAL_EVERY * 20) == 0:
+                    #tf.train.write_graph(sess.graph_def, '.', 'dreamNet.pbtxt')
+                    train_confusion_matrix = sess.run([confusion_matrix], feed_dict={x: X, y: Y, dropout: 1.0})
+                    header = LABEL_TO_INDEX_MAP.keys()
+                    #df = pd.DataFrame(np.reshape(train_confusion_matrix, (NUM_LABELS, NUM_LABELS)), index=??)
+                    #saver.save(sess, os.path.join(LOGDIR, 'dreamNet.ckpt'))
+                sess.run(train_step, feed_dict={x: X, y: Y, dropout: 0.7})
 
-    MODEL_NAME = 'dreamNet'
+        # Тестирование модели
+        batch = get_batch(BATCH_SIZE, PATH_TEST)
+        total_accuracy = 0
+        for i in range(ITERATIONS_TEST):
+            X, Y = next(batch, PATH_TEST)
+            test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0})
+            total_accuracy += (test_accuracy/ITERATIONS_TEST)
+            test_writer.add_summary(s, i)
+            print(test_accuracy)
+        print(total_accuracy)
 
-    input_graph_path = MODEL_NAME + '.pbtxt'
-    checkpoint_path = MODEL_NAME + '.ckpt'
+        saver.save(sess, 'out/' + MODEL_NAME + '.chkp')
+
+    '''input_graph_path = MODEL_NAME + '.pbtxt'
+    checkpoint_path = "log/" + MODEL_NAME + '.ckpt'
     input_saver_def_path = ''
     input_binary = False
     output_node_names = 'result'
@@ -214,7 +219,7 @@ def main():
     ouput_frozen_graph_name = 'frozen ' + MODEL_NAME + '.pb'
     clear_devices = True
 
-    tf.python.tools.freeze_graph(input_graph_path, input_saver_def_path, input_binary, 
+    my_freeze_graph.freeze_graph(input_graph_path, input_saver_def_path, input_binary, 
     checkpoint_path, output_node_names, restore_op_name, filename_tensor_name, 
     ouput_frozen_graph_name, clear_devices, "")
 
@@ -230,49 +235,28 @@ def main():
         tf.float32.as_datatype_enum)
 
     f = tf.gfile.FastGFile(ouput_frozen_graph_name, 'w')
-    f.write(output_graph_def.SerializeToString())
+    f.write(output_graph_def.SerializeToString())'''
 
+def export_model(input_node_names, output_node_name):
+    my_freeze_graph.freeze_graph('out/' + MODEL_NAME + '.pbtxt', None, False, 'out/' + MODEL_NAME + '.chkp', output_node_name, "save/restore_all", "save/Const:0", 'out/frozen_' + MODEL_NAME + '.pb', True, "")
 
+    input_graph_def = tf.GraphDef()
+    with tf.gfile.Open('out/frozen_' + MODEL_NAME + '.pb', "rb") as f:
+        input_graph_def.ParseFromString(f.read())
 
-    '''
-    # Экспортирование модели
-    export_path_base = sys.argv[-1]
-    export_path = os.path.join(compat.as_bytes(export_path_base), compat.as_bytes(str(FLAGS.model_version)))
-    print('Exporting trained model to', export_path)
+    output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, input_node_names, [output_node_name], tf.float32.as_datatype_enum)
 
-    builder = saved_model_builder.SavedModelBuilder(export_path)
+    with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
+        f.write(output_graph_def.SerializeToString())
 
-    # Уточнить параметры
-    classification_inputs = utils.build_tensor_info('serialized_tf_example')
-    classification_outputs_classes = utils.build_tensor_info('prediction_classes')
-    classification_outputs_scores = utils.build_tensor_info('values')
-
-    classification_signature = signature_def_utils.build_signature_def(
-        inputs={signature_constants.CLASSIFY_INPUTS: classification_inputs},
-        outputs={signature_constants.CLASSIFY_OUTPUT_CLASSES: classification_outputs_classes, signature_constants.CLASSIFY_OUTPUT_SCORES: classification_outputs_scores},
-        method_name=signature_constants.CLASSIFY_METHOD_NAME)
-    
-    tensor_info_x = utils.build_tensor_info(x)
-    tensor_info_y = utils.build_tensor_info(y)
-
-    prediction_signature = signature_def_utils.build_signature_def(
-        inputs={'sounds': tensor_info_x},
-        outputs={'scores': tensor_info_y},
-        method_name=signature_constants.PREDICT_METHOD_NAME)
-    
-    legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
-
-    builder.add_meta_graph_and_variables(
-        sess, [tag_constants.SERVING],
-        signature_def_map={'predict_sounds': prediction_signature, signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: classification_signature},
-        legacy_init_op=legacy_init_op)
-
-    builder.save()
-    '''
+    print("graph saved!")
 
 
 if __name__ == '__main__':
     init(PATH_TRAIN)
     main()
-    print(dir(tf))
-
+    input_node_name = 'input'
+    keep_prob_node_name = 'keep_prob'
+    output_node_name = 'output'
+    export_model([input_node_name, keep_prob_node_name], output_node_name)
+    print("successful")
