@@ -7,7 +7,7 @@ import tensorflow as tf
 
 dir = os.path.dirname(os.path.realpath(__file__))
 
-def freeze_graph(model_dir, output_node_names):
+def freeze_graph(model_dir, output_node_names, MODEL_NAME):
     """Extract the sub graph defined by the output nodes and convert 
     all its variables into constant 
     Args:
@@ -30,7 +30,7 @@ def freeze_graph(model_dir, output_node_names):
     
     # We precise the file fullname of our freezed graph
     absolute_model_dir = "/".join(input_checkpoint.split('/')[:-1])
-    output_graph = absolute_model_dir + "/frozen_model.pb"
+    output_graph = absolute_model_dir + "/" + MODEL_NAME + ".pb"
     print(output_graph)
 
     # We clear devices to allow TensorFlow to control on which device it will load operations

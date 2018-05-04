@@ -440,7 +440,7 @@ public class MainActivity extends AppCompatActivity {
                     // Добавление 2 классификаторов (я скорее всего буду использвать 1
                     mClassifiers.add(
                             TensorFlowClassifier.create(getAssets(), "TensorFlow",
-                                    "frozen_model.pb", "labels.txt", MFCC_SIZE_HEIGHT, MFCC_SIZE_WIDTH,
+                                    "opt_frozen_model.pb", "labels.txt", MFCC_SIZE_HEIGHT, MFCC_SIZE_WIDTH,
                                     "input", "output"));
                 } catch (final Exception e) {
                     // Ошибка, если не найдено
