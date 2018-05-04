@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
     // Инициализация переменных модели
     private List<Classifier> mClassifiers = new ArrayList<>();
     private static final int MFCC_SIZE_HEIGHT = 20;
-    private static final int MFCC_SIZE_WIDTH = 87;
+    private static final int MFCC_SIZE_WIDTH = 88;
 
     // Действия по инициализации активити
     @Override
@@ -298,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
             recordingThread = null;
         }
         String prediction = getPrediction(getTempFilename());
-        Log.e("prediction",prediction);
+        Log.e("prediction", prediction);
         copyWaveFile(getTempFilename(),getFilename());
         deleteTempFile();
         return prediction;
@@ -440,8 +440,8 @@ public class MainActivity extends AppCompatActivity {
                     // Добавление 2 классификаторов (я скорее всего буду использвать 1
                     mClassifiers.add(
                             TensorFlowClassifier.create(getAssets(), "TensorFlow",
-                                    "opt_frozen_model.pb", "labels.txt", MFCC_SIZE_HEIGHT, MFCC_SIZE_WIDTH,
-                                    "input", "output"));
+                                    "opt_dreamNet.pb", "labels.txt", MFCC_SIZE_HEIGHT, MFCC_SIZE_WIDTH,
+                                    "input", "FC/output", 1.0f));
                 } catch (final Exception e) {
                     // Ошибка, если не найдено
                     throw new RuntimeException("Error initializing classifiers!", e);
@@ -474,6 +474,7 @@ public class MainActivity extends AppCompatActivity {
         }
         MFCC mfccConvert = new MFCC();
         float[] mfccInput = mfccConvert.process(doubleInputBuffer);
+        //Log.e("mfccInput", "" + mfccInput.length);
         String prediction = "Не удалось вычислить предсказание";
         // Классификация записи
         for (Classifier classifier : mClassifiers) {
@@ -482,7 +483,6 @@ public class MainActivity extends AppCompatActivity {
             // если не может классифицировать - выводит вопросительный знак
             if (res.getLabel() == null) {
                 prediction = "Не удалось получить точнй результат";
-                Log.e("Нет данных о лейблах", classifier.name() + ": ?\n");
             } else {
                 // иначе - имя выходного слоя
                 prediction = res.getLabel();

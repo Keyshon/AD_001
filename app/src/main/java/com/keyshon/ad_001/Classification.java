@@ -5,7 +5,7 @@ public class Classification {
     private String label;
 
     Classification() {
-        this.conf = -1.0F;
+        this.conf = -3.0F;
         this.label = null;
     }
 

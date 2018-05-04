@@ -1901,7 +1901,7 @@ node {
   }
 }
 node {
-  name: "FC/Add"
+  name: "FC/output"
   op: "Add"
   input: "FC/MatMul"
   input: "FC/B3/read"
@@ -2002,7 +2002,7 @@ node {
 node {
   name: "loss/Shape"
   op: "Shape"
-  input: "FC/Add"
+  input: "FC/output"
   attr {
     key: "T"
     value {
@@ -2040,7 +2040,7 @@ node {
 node {
   name: "loss/Shape_1"
   op: "Shape"
-  input: "FC/Add"
+  input: "FC/output"
   attr {
     key: "T"
     value {
@@ -2226,7 +2226,7 @@ node {
 node {
   name: "loss/Reshape"
   op: "Reshape"
-  input: "FC/Add"
+  input: "FC/output"
   input: "loss/concat"
   attr {
     key: "T"
@@ -3117,7 +3117,7 @@ node {
 node {
   name: "train/gradients/loss/Reshape_grad/Shape"
   op: "Shape"
-  input: "FC/Add"
+  input: "FC/output"
   attr {
     key: "T"
     value {
@@ -3150,7 +3150,7 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/Shape"
+  name: "train/gradients/FC/output_grad/Shape"
   op: "Shape"
   input: "FC/MatMul"
   attr {
@@ -3167,7 +3167,7 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/Shape_1"
+  name: "train/gradients/FC/output_grad/Shape_1"
   op: "Const"
   attr {
     key: "dtype"
@@ -3191,10 +3191,10 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/BroadcastGradientArgs"
+  name: "train/gradients/FC/output_grad/BroadcastGradientArgs"
   op: "BroadcastGradientArgs"
-  input: "train/gradients/FC/Add_grad/Shape"
-  input: "train/gradients/FC/Add_grad/Shape_1"
+  input: "train/gradients/FC/output_grad/Shape"
+  input: "train/gradients/FC/output_grad/Shape_1"
   attr {
     key: "T"
     value {
@@ -3203,10 +3203,10 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/Sum"
+  name: "train/gradients/FC/output_grad/Sum"
   op: "Sum"
   input: "train/gradients/loss/Reshape_grad/Reshape"
-  input: "train/gradients/FC/Add_grad/BroadcastGradientArgs"
+  input: "train/gradients/FC/output_grad/BroadcastGradientArgs"
   attr {
     key: "T"
     value {
@@ -3227,10 +3227,10 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/Reshape"
+  name: "train/gradients/FC/output_grad/Reshape"
   op: "Reshape"
-  input: "train/gradients/FC/Add_grad/Sum"
-  input: "train/gradients/FC/Add_grad/Shape"
+  input: "train/gradients/FC/output_grad/Sum"
+  input: "train/gradients/FC/output_grad/Shape"
   attr {
     key: "T"
     value {
@@ -3245,10 +3245,10 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/Sum_1"
+  name: "train/gradients/FC/output_grad/Sum_1"
   op: "Sum"
   input: "train/gradients/loss/Reshape_grad/Reshape"
-  input: "train/gradients/FC/Add_grad/BroadcastGradientArgs:1"
+  input: "train/gradients/FC/output_grad/BroadcastGradientArgs:1"
   attr {
     key: "T"
     value {
@@ -3269,10 +3269,10 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/Reshape_1"
+  name: "train/gradients/FC/output_grad/Reshape_1"
   op: "Reshape"
-  input: "train/gradients/FC/Add_grad/Sum_1"
-  input: "train/gradients/FC/Add_grad/Shape_1"
+  input: "train/gradients/FC/output_grad/Sum_1"
+  input: "train/gradients/FC/output_grad/Shape_1"
   attr {
     key: "T"
     value {
@@ -3287,16 +3287,16 @@ node {
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/tuple/group_deps"
+  name: "train/gradients/FC/output_grad/tuple/group_deps"
   op: "NoOp"
-  input: "^train/gradients/FC/Add_grad/Reshape"
-  input: "^train/gradients/FC/Add_grad/Reshape_1"
+  input: "^train/gradients/FC/output_grad/Reshape"
+  input: "^train/gradients/FC/output_grad/Reshape_1"
 }
 node {
-  name: "train/gradients/FC/Add_grad/tuple/control_dependency"
+  name: "train/gradients/FC/output_grad/tuple/control_dependency"
   op: "Identity"
-  input: "train/gradients/FC/Add_grad/Reshape"
-  input: "^train/gradients/FC/Add_grad/tuple/group_deps"
+  input: "train/gradients/FC/output_grad/Reshape"
+  input: "^train/gradients/FC/output_grad/tuple/group_deps"
   attr {
     key: "T"
     value {
@@ -3307,16 +3307,16 @@ node {
     key: "_class"
     value {
       list {
-        s: "loc:@train/gradients/FC/Add_grad/Reshape"
+        s: "loc:@train/gradients/FC/output_grad/Reshape"
       }
     }
   }
 }
 node {
-  name: "train/gradients/FC/Add_grad/tuple/control_dependency_1"
+  name: "train/gradients/FC/output_grad/tuple/control_dependency_1"
   op: "Identity"
-  input: "train/gradients/FC/Add_grad/Reshape_1"
-  input: "^train/gradients/FC/Add_grad/tuple/group_deps"
+  input: "train/gradients/FC/output_grad/Reshape_1"
+  input: "^train/gradients/FC/output_grad/tuple/group_deps"
   attr {
     key: "T"
     value {
@@ -3327,7 +3327,7 @@ node {
     key: "_class"
     value {
       list {
-        s: "loc:@train/gradients/FC/Add_grad/Reshape_1"
+        s: "loc:@train/gradients/FC/output_grad/Reshape_1"
       }
     }
   }
@@ -3335,7 +3335,7 @@ node {
 node {
   name: "train/gradients/FC/MatMul_grad/MatMul"
   op: "MatMul"
-  input: "train/gradients/FC/Add_grad/tuple/control_dependency"
+  input: "train/gradients/FC/output_grad/tuple/control_dependency"
   input: "FC/W3/read"
   attr {
     key: "T"
@@ -3360,7 +3360,7 @@ node {
   name: "train/gradients/FC/MatMul_grad/MatMul_1"
   op: "MatMul"
   input: "Conv2/Reshape"
-  input: "train/gradients/FC/Add_grad/tuple/control_dependency"
+  input: "train/gradients/FC/output_grad/tuple/control_dependency"
   attr {
     key: "T"
     value {
@@ -7200,7 +7200,7 @@ node {
   input: "train/Adam/beta1"
   input: "train/Adam/beta2"
   input: "train/Adam/epsilon"
-  input: "train/gradients/FC/Add_grad/tuple/control_dependency_1"
+  input: "train/gradients/FC/output_grad/tuple/control_dependency_1"
   attr {
     key: "T"
     value {
@@ -7380,7 +7380,7 @@ node {
 node {
   name: "accuracy/ArgMax"
   op: "ArgMax"
-  input: "FC/Add"
+  input: "FC/output"
   input: "accuracy/ArgMax/dimension"
   attr {
     key: "T"

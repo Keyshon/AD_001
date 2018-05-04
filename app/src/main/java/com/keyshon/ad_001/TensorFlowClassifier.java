@@ -1,7 +1,6 @@
 package com.keyshon.ad_001;
 
 import android.content.res.AssetManager;
-import android.util.Log;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -15,7 +14,7 @@ import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 public class TensorFlowClassifier implements Classifier {
 
     // Возвращает результат, если уверенность в ответе больше порогового значения
-    private static final float THRESHOLD = 0.5f;
+    private static final float THRESHOLD = -3.0f;
 
     private TensorFlowInferenceInterface tfHelper;
 
@@ -28,6 +27,7 @@ public class TensorFlowClassifier implements Classifier {
     private List<String> labels;
     private float[] output;
     private String[] outputNames;
+    private float dropout;
 
     // Получает сохранённую можель, считывание лейблов модели в список
     private static List<String> readLabels(AssetManager am, String fileName) throws IOException {
@@ -37,7 +37,6 @@ public class TensorFlowClassifier implements Classifier {
         List<String> labels = new ArrayList<>();
         while ((line = br.readLine()) != null) {
             labels.add(line);
-            Log.e("Лейбл",line);
         }
 
         br.close();
@@ -46,7 +45,7 @@ public class TensorFlowClassifier implements Classifier {
 
     // Записывает в модель лейблы и метаданные модели в том числе предсказания
     public static TensorFlowClassifier create(AssetManager assetManager, String name,
-                                              String modelPath, String labelFile, int inputSizeH, int inputSizeW, String inputName, String outputName) throws IOException {
+                                              String modelPath, String labelFile, int inputSizeH, int inputSizeW, String inputName, String outputName, float dropout) throws IOException {
         // Инициализация классификатора
         TensorFlowClassifier c = new TensorFlowClassifier();
 
@@ -70,6 +69,7 @@ public class TensorFlowClassifier implements Classifier {
         c.outputNames = new String[]{outputName};
         c.outputName = outputName;
         c.output = new float[numClasses];
+        c.dropout = dropout;
 
         return c;
     }
@@ -85,7 +85,9 @@ public class TensorFlowClassifier implements Classifier {
     public Classification recognize(final float[] data) {
 
         // При помощи интерфейса происходит передача имени входного слоя, данных и размера
-        tfHelper.feed(inputName, data, inputSizeH, inputSizeW);
+        tfHelper.feed(inputName, data, 1, inputSizeH, inputSizeW, 1);
+        tfHelper.feed("dropout", new float[] { 1 });
+
         Integer l = data.length;
         // Прогон данных по модели
         tfHelper.run(outputNames);

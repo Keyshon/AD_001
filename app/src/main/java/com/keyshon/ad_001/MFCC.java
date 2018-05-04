@@ -22,8 +22,15 @@ public class MFCC {
     }
 
     private float[] finalshape(double[][] mfccSpecTro){
-        float[] finalMfcc = new float[mfccSpecTro[0].length * mfccSpecTro.length];
+        float[] finalMfcc = new float[(mfccSpecTro[0].length + 1) * mfccSpecTro.length];
         int k = 0;
+        for (int i = 0; i < mfccSpecTro[0].length + 1; i++){
+            for (int j = 0; j < mfccSpecTro.length; j++){
+                finalMfcc[k] = 0;
+                k = k+1;
+            }
+        }
+        k = 0;
         for (int i = 0; i < mfccSpecTro[0].length; i++){
             for (int j = 0; j < mfccSpecTro.length; j++){
                 finalMfcc[k] = (float) mfccSpecTro[j][i];
@@ -50,6 +57,7 @@ public class MFCC {
     private double[][] melSpectrogram(double[] y){
         double[][] melBasis = melFilter();
         double[][] spectro = stftMagSpec(y);
+
         double[][] melS = new double[melBasis.length][spectro[0].length];
         for (int i = 0; i < melBasis.length; i++){
             for (int j = 0; j < spectro[0].length; j++){

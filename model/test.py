@@ -17,6 +17,7 @@ import tensorflow as tf
 #import my_freeze_graph
 import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
+from tensorflow.python.tools import freeze_graph as fg
 
 # Глобальные параметры
 PATH_TRAIN = 'E:/Documents/Dataset/Test'
@@ -81,7 +82,7 @@ def get_batch(batch_size, path):
                 X = []
                 Y = []
 
-def get_model(input, dropout):
+def get_model(input, dropout, output_node_name):
     # 1. Свёрточный слой
     with tf.name_scope('Conv1'):
         input_4D = tf.reshape(input, [-1, HEIGHT, WIDTH, 1])
@@ -114,24 +115,27 @@ def get_model(input, dropout):
     with tf.name_scope('FC'):
         w3 = tf.Variable(tf.truncated_normal([count, NUM_LABELS], stddev=0.01), name='W3')
         b3 = tf.Variable(tf.zeros([NUM_LABELS]), name='B3')
-        fc = tf.add(tf.matmul(flat_output, w3), b3)
+        fc = tf.add(tf.matmul(flat_output, w3), b3, name=output_node_name)
         tf.summary.histogram('weights', w3)
         tf.summary.histogram('biases', b3)
     return fc
 
 # Точка входа 
 def main():
+    input_node_name = 'input'
+    output_node_name = 'output'
+    dropout_name = 'dropout'
     # Запуска графа и сессии в Tensorflow
     tf.reset_default_graph()
     with tf.Session() as sess:
         # Входные данные
-        x = tf.placeholder(tf.float32, shape=[None, HEIGHT, WIDTH], name = 'input')
+        x = tf.placeholder(tf.float32, shape=[None, HEIGHT, WIDTH], name=input_node_name)
         # Метки
         y = tf.placeholder(tf.float32, shape=[None, NUM_LABELS], name = 'label')
         # Шанс срабатывания dropout
-        dropout = tf.placeholder(tf.float32, name='dropout')
+        dropout = tf.placeholder(tf.float32, name=dropout_name)
         # Модель нейронной сети
-        logits = get_model(x, dropout)
+        logits = get_model(x, dropout, output_node_name)
         # Loss-функция
         with tf.name_scope('loss'):
             # ОТЛИЧАЕТСЯ ОТ ВИДЕО!!!
@@ -191,14 +195,13 @@ def main():
         for n in tf.get_default_graph().as_graph_def().node:
             s += (n.name + ',')
         s = s[:-1]
-        freeze_graph.freeze_graph('C:/Temp/AD_001/model/out', s, MODEL_NAME)
+    freeze_graph.freeze_graph('E:/Temp/AD_001/model/out', 'FC/' + output_node_name, MODEL_NAME)
+    #fg.freeze_graph('E:/Temp/AD_001/model/out/' + MODEL_NAME + '.pbtxt', None, False, 'E:/Temp/AD_001/model/out/' + MODEL_NAME + '.chkp', output_node_name, "save/restore_all", "save/Const:0", 'E:/Temp/AD_001/model/out/frozen_' + MODEL_NAME + '.pb', True, "")
     input_graph_def = tf.GraphDef()
-    with tf.gfile.Open('out/' + MODEL_NAME + '.pb', "rb") as f:
+    with tf.gfile.Open('E:/Temp/AD_001/model/' + MODEL_NAME + '.pb', "rb") as f:
         input_graph_def.ParseFromString(f.read())
-    input_node_name = 'input'
-    output_node_name = 'output'
-    output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, [input_node_name], [output_node_name], tf.float32.as_datatype_enum)
-    with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
+    output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, [input_node_name, dropout_name], ['FC/' + output_node_name], tf.float32.as_datatype_enum)
+    with tf.gfile.FastGFile('E:/Temp/AD_001/model/opt_' + MODEL_NAME + '.pb', "wb") as f:
         f.write(output_graph_def.SerializeToString())
 
 if __name__ == '__main__':
