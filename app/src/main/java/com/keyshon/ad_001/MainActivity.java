@@ -297,8 +297,8 @@ public class MainActivity extends AppCompatActivity {
             recorder = null;
             recordingThread = null;
         }
-        //String prediction = getPrediction(getTempFilename());
-        String prediction = "Sleep";
+        String prediction = getPrediction(getTempFilename());
+        Log.e("prediction",prediction);
         copyWaveFile(getTempFilename(),getFilename());
         deleteTempFile();
         return prediction;
@@ -440,12 +440,8 @@ public class MainActivity extends AppCompatActivity {
                     // Добавление 2 классификаторов (я скорее всего буду использвать 1
                     mClassifiers.add(
                             TensorFlowClassifier.create(getAssets(), "TensorFlow",
-                                    "opt_mnist_convnet-tf.pb", "labels.txt", MFCC_SIZE_HEIGHT, MFCC_SIZE_WIDTH,
-                                    "input", "output", true));
-//                    mClassifiers.add(
-//                            TensorFlowClassifier.create(getAssets(), "Keras",
-//                                    "opt_mnist_convnet-keras.pb", "labels.txt", MFCC_SIZE,
-//                                    "conv2d_1_input", "dense_2/Softmax", false));
+                                    "frozen_model.pb", "labels.txt", MFCC_SIZE_HEIGHT, MFCC_SIZE_WIDTH,
+                                    "input", "output"));
                 } catch (final Exception e) {
                     // Ошибка, если не найдено
                     throw new RuntimeException("Error initializing classifiers!", e);
@@ -490,7 +486,6 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 // иначе - имя выходного слоя
                 prediction = res.getLabel();
-                //Log.e("Успешно - результат", String.format("%s: %s, %f\n", classifier.name(), res.getLabel(), res.getConf()));
             }
         }
         return prediction;

@@ -19,8 +19,8 @@ import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
 
 # Глобальные параметры
-PATH_TRAIN = 'E:\Documents\Dataset\Test'
-PATH_TEST = 'E:\Documents\Dataset\Train'
+PATH_TRAIN = 'E:/Documents/Dataset/Test'
+PATH_TEST = 'E:/Documents/Dataset/Train'
 BATCH_SIZE = 10
 ITERATIONS = 2
 EPOCHS = 2
@@ -191,11 +191,21 @@ def main():
         for n in tf.get_default_graph().as_graph_def().node:
             s += (n.name + ',')
         s = s[:-1]
-        freeze_graph.freeze_graph('E:\Temp\AD_001\model\out', s)
+        freeze_graph.freeze_graph('C:/Temp/AD_001/model/out', s)
+    input_graph_def = tf.GraphDef()
+    with tf.gfile.Open('out/frozen_model.pb', "rb") as f:
+        input_graph_def.ParseFromString(f.read())
+    input_node_name = 'input'
+    output_node_name = 'output'
+    output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, [input_node_name], [output_node_name], tf.float32.as_datatype_enum)
+    with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
+        f.write(output_graph_def.SerializeToString())
+        
     '''input_node_name = 'input'
     keep_prob_node_name = 'keep_prob'
     output_node_name = 'output'
     export_model([input_node_name, keep_prob_node_name], output_node_name)'''
+    
 
 # Экспорт модели
 def export_model(input_node_names, output_node_name):

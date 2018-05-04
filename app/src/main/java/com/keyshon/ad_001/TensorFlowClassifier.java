@@ -24,7 +24,6 @@ public class TensorFlowClassifier implements Classifier {
     private String outputName;
     private int inputSizeH;
     private int inputSizeW;
-    private boolean feedKeepProb;
 
     private List<String> labels;
     private float[] output;
@@ -47,8 +46,7 @@ public class TensorFlowClassifier implements Classifier {
 
     // Записывает в модель лейблы и метаданные модели в том числе предсказания
     public static TensorFlowClassifier create(AssetManager assetManager, String name,
-                                              String modelPath, String labelFile, int inputSizeH, int inputSizeW, String inputName, String outputName,
-                                              boolean feedKeepProb) throws IOException {
+                                              String modelPath, String labelFile, int inputSizeH, int inputSizeW, String inputName, String outputName) throws IOException {
         // Инициализация классификатора
         TensorFlowClassifier c = new TensorFlowClassifier();
 
@@ -72,7 +70,6 @@ public class TensorFlowClassifier implements Classifier {
         c.outputNames = new String[]{outputName};
         c.outputName = outputName;
         c.output = new float[numClasses];
-        c.feedKeepProb = feedKeepProb;
 
         return c;
     }
@@ -90,10 +87,6 @@ public class TensorFlowClassifier implements Classifier {
         // При помощи интерфейса происходит передача имени входного слоя, данных и размера
         tfHelper.feed(inputName, data, inputSizeH, inputSizeW);
         Integer l = data.length;
-        // Вероятности
-        if (feedKeepProb) {
-            tfHelper.feed("keep_prob", new float[]{1});
-        }
         // Прогон данных по модели
         tfHelper.run(outputNames);
 
