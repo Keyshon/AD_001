@@ -22,11 +22,12 @@ from tensorflow.python.tools import freeze_graph as fg
 # Глобальные параметры
 PATH_TRAIN = 'E:/Documents/Dataset/Train'
 PATH_TEST = 'E:/Documents/Dataset/Test'
+PATH2_TEST = 'E:/Documents/Dataset/Train1'
 #BATCH_SIZE = 20
 #ITERATIONS = 100
-BATCH_SIZE = 40
-ITERATIONS = 200
-ITERATIONS_TEST = 5
+BATCH_SIZE = 50
+ITERATIONS = 100
+ITERATIONS_TEST = 2
 EVAL_EVERY = 2
 HEIGHT = 20
 WIDTH = 88
@@ -103,17 +104,17 @@ def get_batch(batch_size, path):
                 X = []
                 Y = []
 
-'''def get_model(input, dropout, output_node_name, phase_train):'''
-def get_model(input, dropout, output_node_name):
+'''def get_model(input, dropout, output_node_name):'''
+def get_model(input, dropout, output_node_name, phase_train):
     # 1. Свёрточный слой
     with tf.name_scope('Conv1'):
         input_4D = tf.reshape(input, [-1, HEIGHT, WIDTH, 1])
         w1 = tf.Variable(tf.truncated_normal([12, 8, 1, 44], stddev=0.01), name='W1')
         b1 = tf.Variable(tf.zeros([44]), name='B1')
         conv1 = tf.nn.conv2d(input_4D, w1, strides=[1, 1, 1, 1], padding='SAME')
-        '''conv1_bn = batch_norm(conv1 + b1, 44, phase_train)
-        act1 = tf.nn.relu(conv1_bn)'''
-        act1 = tf.nn.relu(conv1)
+        conv1_bn = batch_norm(conv1 + b1, 44, phase_train)
+        act1 = tf.nn.relu(conv1_bn)
+        '''act1 = tf.nn.relu(conv1)'''
         drop1 = tf.nn.dropout(act1, dropout)
         max_pool1 = tf.nn.max_pool(drop1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         tf.summary.histogram('weights', w1)
@@ -121,22 +122,22 @@ def get_model(input, dropout, output_node_name):
         tf.summary.histogram('activations', act1)
         tf.summary.histogram('dropouts', drop1)
     # 2. Свёрточный слой
-    with tf.name_scope('Conv2'):
+    '''with tf.name_scope('Conv2'):
         w2 = tf.Variable(tf.truncated_normal([6, 4, 44, 44], stddev=0.01), name='W2')
         b2 = tf.Variable(tf.zeros([44]), name='B2')
         conv2 = tf.nn.conv2d(max_pool1, w2, strides=[1, 1, 1, 1], padding='SAME')
-        '''conv2_bn = batch_norm(conv2 + b2, 44, phase_train)
-        act2 = tf.nn.relu(conv2_bn)'''
+        #conv2_bn = batch_norm(conv2 + b2, 44, phase_train)
+        #act2 = tf.nn.relu(conv2_bn)
         act2 = tf.nn.relu(conv2)
         drop2 = tf.nn.dropout(act2, dropout)
         tf.summary.histogram('weights', w2)
         tf.summary.histogram('biases', b2)
         tf.summary.histogram('activations', act2)
-        tf.summary.histogram('dropouts', drop2)
-        # Решейпинг для полносвязного слоя
-        conv_shape = drop2.get_shape()
-        count = int(conv_shape[1] * conv_shape[2] * conv_shape[3])
-        flat_output = tf.reshape(drop2, [-1, count])
+        tf.summary.histogram('dropouts', drop2)'''
+    # Решейпинг для полносвязного слоя
+    conv_shape = drop1.get_shape()
+    count = int(conv_shape[1] * conv_shape[2] * conv_shape[3])
+    flat_output = tf.reshape(drop1, [-1, count])
     # Полносвязный слой
     with tf.name_scope('FC'):
         w3 = tf.Variable(tf.truncated_normal([count, NUM_LABELS], stddev=0.01), name='W3')
@@ -152,8 +153,9 @@ def main():
     input_node_name = 'input'
     output_node_name = 'output'
     dropout_name = 'dropout'
-    rates = [0.000000001]
-    dropouts = [0.75]
+    phase_name = 'phase_train'
+    rates = [0.0000001, 0.00000005, 0.000000025, 0.00000001, 0.000000005]
+    dropouts = [0.65, 0.7, 0,75]
     for r in rates:
         for d in dropouts:
             total_accuracy = 0
@@ -167,10 +169,10 @@ def main():
                 # Шанс срабатывания dropout
                 dropout = tf.placeholder(tf.float32, name=dropout_name)
                 # 
-                '''phase_train = tf.placeholder(tf.bool, name='phase_train')'''
+                phase_train = tf.placeholder(tf.bool, name=phase_name)
                 # Модель нейронной сети
-                '''logits = get_model(x, dropout, output_node_name, phase_train)'''
-                logits = get_model(x, dropout, output_node_name)
+                logits = get_model(x, dropout, output_node_name, phase_train)
+                '''logits = get_model(x, dropout, output_node_name)'''
                 # Loss-функция
                 with tf.name_scope('loss'):
                     # ОТЛИЧАЕТСЯ ОТ ВИДЕО!!!
@@ -214,35 +216,45 @@ def main():
                         train_confusion_matrix = sess.run([confusion_matrix], feed_dict={x: X, y: Y, dropout: 1.0})
                         header = LABEL_TO_INDEX_MAP.keys()'''
                     '''sess.run(train_step, feed_dict={x: X, y: Y, dropout: d, phase_train: n})'''
-                    sess.run(train_step, feed_dict={x: X, y: Y, dropout: d})
-                    [train_accuracy, train_loss] = sess.run([accuracy, loss], feed_dict={x: X, y: Y, dropout: 1.0})
-                    print("train:", train_accuracy, "loss:", train_loss)                    
-                    # Тестирование модели
-                    batch = get_batch(BATCH_SIZE, PATH_TEST)
-                    total_accuracy = 0
-                    for i in range(ITERATIONS_TEST):
-                        X, Y = next(batch, PATH_TEST)
-                        '''test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0, phase_train: False})'''
-                        test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0})
-                        total_accuracy += (test_accuracy/ITERATIONS_TEST)
-                        #test_writer.add_summary(s, i)
-                    print("test:", total_accuracy)
-                    # Сохранение модели
-                    if total_accuracy > 0.9 and train_accuracy > 0.9:
-                        saver.save(sess, 'out/' + MODEL_NAME + str(k) + '.chkp')
-                        s = ''
-                        for n in tf.get_default_graph().as_graph_def().node:
-                            s += (n.name + ',')
-                        s = s[:-1]
-                        freeze_graph.freeze_graph('E:/Temp/AD_001/model/out', 'FC/' + output_node_name, MODEL_NAME + str(k))
-                        input_graph_def = tf.GraphDef()
-                        with tf.gfile.Open('E:/Temp/AD_001/model/' + MODEL_NAME + str(k) + '.pb', "rb") as f:
-                            input_graph_def.ParseFromString(f.read())
-                        output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, [input_node_name, dropout_name], ['FC/' + output_node_name], tf.float32.as_datatype_enum)
-                        with tf.gfile.FastGFile('E:/Temp/AD_001/model/opt_' + MODEL_NAME + str(k) + '.pb', "wb") as f:
-                            f.write(output_graph_def.SerializeToString())
-                        k += 1
-                    print("\n")
+                    sess.run(train_step, feed_dict={x: X, y: Y, dropout: d, phase_train: True})
+                    '''[train_accuracy, train_loss] = sess.run([accuracy, loss], feed_dict={x: X, y: Y, dropout: 1.0, phase_train: False})
+                    print("train:", train_accuracy, "loss:", train_loss)'''
+                    if (i % 5 == 0):                    
+                        # Тестирование модели на новых звуках
+                        batch_test = get_batch(BATCH_SIZE, PATH_TEST)
+                        total_accuracy_test = 0
+                        for i in range(ITERATIONS_TEST):
+                            X, Y = next(batch_test, PATH_TEST)
+                            '''test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0, phase_train: False})'''
+                            test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0, phase_train: False})
+                            total_accuracy_test += (test_accuracy/ITERATIONS_TEST)
+                            #test_writer.add_summary(s, i)
+                        print("test:", total_accuracy_test)
+                        # Тестирование модели на старых звуках
+                        batch_train = get_batch(BATCH_SIZE, PATH2_TEST)
+                        total_accuracy_train = 0
+                        for i in range(ITERATIONS_TEST):
+                            X, Y = next(batch_train, PATH2_TEST)
+                            '''test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0, phase_train: False})'''
+                            test_accuracy, s = sess.run([accuracy, summ], feed_dict={x: X, y: Y, dropout: 1.0, phase_train: False})
+                            total_accuracy_train += (test_accuracy/ITERATIONS_TEST)
+                            #test_writer.add_summary(s, i)
+                        print("test:", total_accuracy_train)
+                        # Сохранение модели
+                        if total_accuracy_test > 0.9 and total_accuracy_train > 0.9:
+                            saver.save(sess, 'out/' + MODEL_NAME + str(k) + '.chkp')
+                            s = ''
+                            for n in tf.get_default_graph().as_graph_def().node:
+                                s += (n.name + ',')
+                            s = s[:-1]
+                            freeze_graph.freeze_graph('E:/Temp/AD_001/model/out', 'FC/' + output_node_name, MODEL_NAME + str(k))
+                            input_graph_def = tf.GraphDef()
+                            with tf.gfile.Open('E:/Temp/AD_001/model/' + MODEL_NAME + str(k) + '.pb', "rb") as f:
+                                input_graph_def.ParseFromString(f.read())
+                            output_graph_def = optimize_for_inference_lib.optimize_for_inference(input_graph_def, [input_node_name, dropout_name, phase_name], ['FC/' + output_node_name], tf.float32.as_datatype_enum)
+                            with tf.gfile.FastGFile('E:/Temp/AD_001/model/opt_' + MODEL_NAME + str(k) + '.pb', "wb") as f:
+                                f.write(output_graph_def.SerializeToString())
+                            k += 1
                 #print ("dreamNet:", k, "accuracy:", total_accuracy, "Learning rate:", r, "Dropout", d)
 
 
