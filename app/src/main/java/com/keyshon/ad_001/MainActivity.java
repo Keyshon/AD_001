@@ -32,9 +32,6 @@ import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
-
-import java.util.concurrent.TimeUnit;
-
 public class MainActivity extends AppCompatActivity {
     // Инициализация переменных БУДИЛЬНИКА
     AlarmManager alarmManager;
@@ -47,9 +44,10 @@ public class MainActivity extends AppCompatActivity {
     String[] lisRes = {"Случайно", "Звук 1", "Звук 2", "Звук 3", "Звук 4", "Звук 5", "Звук 6", "Звук 7", "Звук 8", "Звук 9"};
     Integer pos = 0;
     private Integer phaseCounter = 0;
-    long MAX_PHASE_LENGTH = 5400000;
-    long MIN_PHASE_LENGTH = 3600000;
-    long MAX_CORRECTION_LENGTH = 1200000;
+    long MAX_PHASE_LENGTH = 5400000L;
+    long MIN_PHASE_LENGTH = 3600000L;
+    long MAX_CORRECTION_LENGTH = 600000L;
+    long MIN_CORRECTION_LENGTH = 600000L;
     long DELTA_ERROR = 300000;
     private Calendar calendar;
     private Calendar phaseCalendar;
@@ -70,13 +68,27 @@ public class MainActivity extends AppCompatActivity {
     private boolean isRecording = false;
     private boolean stopRecording;
     // Инициализация переменных Таймера
-    private static long delayTime = 1000; // Лучше всего 1200000 ms = 20 min
+    long DELAY_TIME = 1200000L; // Лучше всего 1200000 ms = 20 min
     private Timer mTimer;
     private MyTimerTask mMyTimerTask;
     // Инициализация переменных модели
     private List<Classifier> mClassifiers = new ArrayList<>();
     private static final int MFCC_SIZE_HEIGHT = 20;
     private static final int MFCC_SIZE_WIDTH = 88;
+    // Статистические величины
+    double QUALITY_VALUE = 71;
+    long FALL_VALUE = 0;
+    int FALL_COUNTER = 0;
+    long ALARM_START = 0;
+    long ALARM_END = 0;
+    boolean FALL_FIRST;
+    long SLEEP_VALUE = 0;
+    int SLEEP_COUNTER = 0;
+    long PHASE_VALUE = 0;
+    int PHASE_COUNTER = 0;
+    long NEW_PHASE = 0;
+    long PREV_PHASE = 0;
+
 
     // Действия по инициализации активити
     @Override
@@ -88,10 +100,12 @@ public class MainActivity extends AppCompatActivity {
 
         // Находим элементы
         setContentView(R.layout.activity_main);
-        alarmTextView = (TextView) findViewById(R.id.alarmText);
+        alarmTextView = (TextView) findViewById(R.id.phaseText);
         alarmTimePicker = (TimePicker) findViewById(R.id.alarmTimePicker);
         Button start_alarm = (Button) findViewById(R.id.start_alarm);
         Button stop_alarm = (Button) findViewById(R.id.stop_alarm);
+        Button statistic = (Button)  findViewById(R.id.statistic);
+        Button options = (Button)  findViewById(R.id.options);
         Spinner spinner = (Spinner) findViewById(R.id.spinner);
 
         // Задаём контекст, спиннер
@@ -116,6 +130,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 stopRecording = false;
+                FALL_FIRST = true;
                 // Считываем значения в необходимом формате
                 final int hour = alarmTimePicker.getCurrentHour();
                 final int minute = alarmTimePicker.getCurrentMinute();;
@@ -124,6 +139,7 @@ public class MainActivity extends AppCompatActivity {
                 // Создаём задачу в календаре
                 calendar.set(Calendar.HOUR_OF_DAY, hour);
                 calendar.set(Calendar.MINUTE, minute);
+                ALARM_START = calendar.getTimeInMillis();
                 // Передаём в наше Намерение
                 myIntent.putExtra("extra", "yes");
                 myIntent.putExtra("song", String.valueOf(pos));
@@ -143,7 +159,7 @@ public class MainActivity extends AppCompatActivity {
                         mTimer.cancel();
                     mTimer = new Timer();
                     mMyTimerTask = new MyTimerTask();
-                    mTimer.schedule(mMyTimerTask, delayTime, 2000);
+                    mTimer.schedule(mMyTimerTask, DELAY_TIME, 2000);
                     startRecording();
                 }
             }
@@ -169,6 +185,33 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // Листенер на кнопку перехода к окну статистики
+        statistic.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, StatisticActivity.class);
+                intent.putExtra("qualityValue", String.valueOf((int)QUALITY_VALUE));
+                intent.putExtra("fallValue", String.valueOf(FALL_VALUE));
+                intent.putExtra("sleepValue", String.valueOf(SLEEP_VALUE));
+                intent.putExtra("phaseValue", String.valueOf(PHASE_VALUE));
+                startActivity(intent);
+            }
+        });
+
+        // Листенер на кнопку перехода к окну опций
+        options.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, OptionActivity.class);
+                intent.putExtra("delayValue", String.valueOf(DELAY_TIME));
+                intent.putExtra("lowerLimitValue", String.valueOf(MIN_CORRECTION_LENGTH));
+                intent.putExtra("upperLimitValue", String.valueOf(MAX_CORRECTION_LENGTH));
+                intent.putExtra("lowerPhaseValue", String.valueOf(MIN_PHASE_LENGTH));
+                intent.putExtra("upperPhaseValue", String.valueOf(MAX_PHASE_LENGTH));
+                startActivityForResult(intent, 999);
+            }
+        });
+
         // Листенер на выпадающий список
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -181,6 +224,17 @@ public class MainActivity extends AppCompatActivity {
                 pos = p2;
             }
         });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent dataIntent) {
+        if (requestCode == 999 && resultCode == RESULT_OK) {
+            DELAY_TIME = Long.valueOf(dataIntent.getStringExtra("delayValue")).longValue();
+            MIN_CORRECTION_LENGTH = Long.valueOf(dataIntent.getStringExtra("lowerLimitValue")).longValue();
+            MAX_CORRECTION_LENGTH = Long.valueOf(dataIntent.getStringExtra("upperLimitValue")).longValue();
+            MIN_PHASE_LENGTH = Long.valueOf(dataIntent.getStringExtra("lowerPhaseValue")).longValue();
+            MAX_PHASE_LENGTH = Long.valueOf(dataIntent.getStringExtra("upperPhaseValue")).longValue();
+        }
     }
 
     // Получить имя файла
@@ -219,7 +273,23 @@ public class MainActivity extends AppCompatActivity {
             String prediction = stopRecording();
             if (prediction == "Sleep") {
                 Calendar tempCalendar = Calendar.getInstance();
-                if (tempCalendar.getTimeInMillis() > phaseCalendar.getTimeInMillis() - DELTA_ERROR) {
+                if (!FALL_FIRST) {
+                    PHASE_VALUE = (PHASE_VALUE * PHASE_COUNTER + NEW_PHASE - PREV_PHASE) / (PHASE_COUNTER + 1);
+                    PHASE_COUNTER++;
+                    if (tempCalendar.getTimeInMillis() - NEW_PHASE > MIN_PHASE_LENGTH) {
+                        PREV_PHASE = NEW_PHASE;
+                        NEW_PHASE = tempCalendar.getTimeInMillis();
+                    }
+                    updateQuality();
+
+                }
+                if (FALL_FIRST) {
+                    FALL_VALUE = (FALL_VALUE + (NEW_PHASE - ALARM_START)) / (FALL_COUNTER + 1);
+                    FALL_COUNTER++;
+                    FALL_FIRST = false;
+                    NEW_PHASE = ALARM_START;
+                }
+                if (NEW_PHASE > phaseCalendar.getTimeInMillis() - DELTA_ERROR) {
                     phaseCalendar = (Calendar) tempCalendar.clone();
                     int minutes = (int)(MIN_PHASE_LENGTH / 60000L);
                     phaseCalendar.add(Calendar.MINUTE, minutes);
@@ -506,8 +576,8 @@ public class MainActivity extends AppCompatActivity {
             else {
                 if (alarmTime - correctTime > MAX_CORRECTION_LENGTH) {
                     // Убавить -20 минут от будильника
-                    Log.e(TAG,"убрано 20 минут");
-                    calendar.add(Calendar.MINUTE, -(int) MAX_CORRECTION_LENGTH);
+                    Log.e(TAG,"убрано n минут");
+                    calendar.add(Calendar.MINUTE, -(int) MIN_CORRECTION_LENGTH);
                     stopRecording = true;
                 }
                 else {
@@ -522,7 +592,7 @@ public class MainActivity extends AppCompatActivity {
         else {
             if (correctTime - alarmTime > MAX_CORRECTION_LENGTH) {
                 // Добавить время +20 минут к будильнику
-                Log.e(TAG,"добавлено 20 минут");
+                Log.e(TAG,"добавлено n минут");
                 calendar.add(Calendar.MINUTE, (int) MAX_CORRECTION_LENGTH);
                 stopRecording = true;
             }
@@ -535,5 +605,19 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
+        ALARM_END = calendar.getTimeInMillis();
+        SLEEP_VALUE = (SLEEP_VALUE * SLEEP_COUNTER + (ALARM_END - ALARM_START)) / (SLEEP_COUNTER + 1);
+        SLEEP_COUNTER++;
+    }
+    private void updateQuality() {
+        long diff = Math.abs(NEW_PHASE - PREV_PHASE - PHASE_VALUE);
+        long perc = diff / PHASE_VALUE;
+        double f = (0.5 - perc) * 4;
+        if (diff >= 1)
+            QUALITY_VALUE -= 2.0;
+        else if (diff < 0.1)
+            QUALITY_VALUE += 2.0;
+        else
+            QUALITY_VALUE += f;
     }
 }
