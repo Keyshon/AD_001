@@ -71,12 +71,14 @@ public class MainActivity extends AppCompatActivity {
     long DELAY_TIME = 1200000L; // Лучше всего 1200000 ms = 20 min
     private Timer mTimer;
     private MyTimerTask mMyTimerTask;
+    private Timer dTimer;
+    private dMyTimerTask dMyTimerTask;
     // Инициализация переменных модели
     private List<Classifier> mClassifiers = new ArrayList<>();
     private static final int MFCC_SIZE_HEIGHT = 20;
     private static final int MFCC_SIZE_WIDTH = 88;
     // Статистические величины
-    double QUALITY_VALUE = 71;
+    double QUALITY_VALUE = -1;
     long FALL_VALUE = 0;
     int FALL_COUNTER = 0;
     long ALARM_START = 0;
@@ -88,6 +90,7 @@ public class MainActivity extends AppCompatActivity {
     int PHASE_COUNTER = 0;
     long NEW_PHASE = 0;
     long PREV_PHASE = 0;
+    long DAILY_SLEEP_LENGTH = 0;
 
 
     // Действия по инициализации активити
@@ -97,6 +100,12 @@ public class MainActivity extends AppCompatActivity {
         bufferSize = AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE,
                 AudioFormat.CHANNEL_CONFIGURATION_MONO,
                 AudioFormat.ENCODING_PCM_16BIT);
+
+        if (dTimer != null)
+            dTimer.cancel();
+        dTimer = new Timer();
+        dMyTimerTask = new dMyTimerTask();
+        dTimer.schedule(dMyTimerTask, 0, 86400000L);
 
         // Находим элементы
         setContentView(R.layout.activity_main);
@@ -159,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
                         mTimer.cancel();
                     mTimer = new Timer();
                     mMyTimerTask = new MyTimerTask();
-                    mTimer.schedule(mMyTimerTask, DELAY_TIME, 2000);
+                    mTimer.schedule(mMyTimerTask, DELAY_TIME, SAMPLE_DURATION_MS);
                     startRecording();
                 }
             }
@@ -500,6 +509,39 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Создание задачи для таймера
+    class dMyTimerTask extends TimerTask {
+        @Override
+        public void run() {
+            if (QUALITY_VALUE != -1) {
+                long diff = Math.abs(DAILY_SLEEP_LENGTH - 30600000L);
+                double f = -((double) diff - 4500000L) / 1350000;
+                if (diff < 1800000L)
+                    QUALITY_VALUE += 2;
+                else if (diff > 7200000L)
+                    QUALITY_VALUE -= 2;
+                else
+                    QUALITY_VALUE += f;
+                DAILY_SLEEP_LENGTH = 0;
+                if (QUALITY_VALUE > 100)
+                    QUALITY_VALUE = 100;
+                if (QUALITY_VALUE < 0)
+                    QUALITY_VALUE = 0;
+            }
+            else {
+                QUALITY_VALUE = 60;
+                long diff = Math.abs(DAILY_SLEEP_LENGTH - 30600000L);
+                double f = (-((double) diff - 4500000L) / 1350000) * 20;
+                if (diff < 1800000L)
+                    QUALITY_VALUE += 40;
+                else if (diff > 7200000L)
+                    QUALITY_VALUE -= 40;
+                else
+                    QUALITY_VALUE += f;
+                DAILY_SLEEP_LENGTH = 0;
+            }
+        }
+    }
     // Создание модели и сохранение тензорфлоу модели в формате .pb с обученными весами
     private void loadModel() {
         // Интерфейс для прогона данных
@@ -606,18 +648,25 @@ public class MainActivity extends AppCompatActivity {
         }
         alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pending_intent);
         ALARM_END = calendar.getTimeInMillis();
+        DAILY_SLEEP_LENGTH += (ALARM_END - ALARM_START);
         SLEEP_VALUE = (SLEEP_VALUE * SLEEP_COUNTER + (ALARM_END - ALARM_START)) / (SLEEP_COUNTER + 1);
         SLEEP_COUNTER++;
     }
     private void updateQuality() {
-        long diff = Math.abs(NEW_PHASE - PREV_PHASE - PHASE_VALUE);
-        long perc = diff / PHASE_VALUE;
-        double f = (0.5 - perc) * 4;
-        if (diff >= 1)
-            QUALITY_VALUE -= 2.0;
-        else if (diff < 0.1)
-            QUALITY_VALUE += 2.0;
-        else
-            QUALITY_VALUE += f;
+        if (QUALITY_VALUE != -1) {
+            long diff = Math.abs(NEW_PHASE - PREV_PHASE - PHASE_VALUE);
+            long perc = diff / PHASE_VALUE;
+            double f = (0.5 - perc) * 4;
+            if (diff >= 1)
+                QUALITY_VALUE -= 2.0;
+            else if (diff < 0.1)
+                QUALITY_VALUE += 2.0;
+            else
+                QUALITY_VALUE += f;
+            if (QUALITY_VALUE > 100)
+                QUALITY_VALUE = 100;
+            if (QUALITY_VALUE < 0)
+                QUALITY_VALUE = 0;
+        }
     }
 }
